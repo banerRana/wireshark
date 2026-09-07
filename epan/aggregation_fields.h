@@ -9,10 +9,7 @@
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
-
-#ifndef __AGGREGATION_FIELDS_H__
-#define __AGGREGATION_FIELDS_H__
-
+#pragma once
 #include <epan/prefs.h>
 
 #ifdef __cplusplus
@@ -23,9 +20,12 @@ extern "C" {
  * Aggregation fields.
  */
 
+/**
+ * @brief Associates a display filter field name with its registered header field ID for aggregation.
+ */
 typedef struct aggregation_field {
-	char	*field;
-	int      hf_id;
+    char *field;  /**< Display filter field name string (e.g. "tcp.len") */
+    int   hf_id;  /**< Registered header field ID (hf_ index) corresponding to @p field */
 } aggregation_field_t;
 
 /* Keep the UAT structure local to the aggregation_fields */
@@ -52,5 +52,3 @@ void aggregation_field_register_uat(module_t* pref_module);
  */
 WS_DLL_PUBLIC
 void apply_aggregation_prefs(void);
-
-#endif /* __AGGREGATION_FIELDS_H__ */

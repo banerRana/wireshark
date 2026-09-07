@@ -16,7 +16,10 @@
 #endif
 
 #include "wireshark_main_window.h"
+#include <ui/qt/manager/interface_list_manager.h>
 #include <ui/qt/widgets/capture_card_widget.h>
+#include "packet_dialog.h"
+#include "search_frame.h"
 
 /*
  * The generated Ui_WiresharkMainWindow::setupUi() can grow larger than our configured limit,
@@ -105,6 +108,7 @@ DIAG_ON(frame-larger-than=)
 #include <ui/qt/widgets/display_filter_edit.h>
 #include "display_filter_expression_dialog.h"
 #include "dissector_tables_dialog.h"
+#include "distribution_dialog.h"
 #include "endpoint_dialog.h"
 #include "expert_info_dialog.h"
 #include "export_object_action.h"
@@ -133,6 +137,7 @@ DIAG_ON(frame-larger-than=)
 #include "lte_rlc_statistics_dialog.h"
 #include "lte_rlc_graph_dialog.h"
 #include "main_application.h"
+#include <ui/qt/utils/font_manager.h>
 #include "manuf_dialog.h"
 #include "mtp3_summary_dialog.h"
 #include "multicast_statistics_dialog.h"
@@ -161,11 +166,14 @@ DIAG_ON(frame-larger-than=)
 #include <ui/qt/utils/stock_icon.h>
 #include "keyboard_shortcuts_dialog.h"
 #include "supported_protocols_dialog.h"
+#include "theme_debug_dialog.h"
 #include "tap_parameter_dialog.h"
+#include "tcp_dedup_dialog.h"
 #include "tcp_stream_dialog.h"
 #include "time_shift_dialog.h"
 #include "uat_dialog.h"
 #include "voip_calls_dialog.h"
+#include "imsi_list_dialog.h"
 #include "wlan_statistics_dialog.h"
 #include <ui/qt/widgets/wireless_timeline.h>
 #include <ui/qt/utils/workspace_state.h>
@@ -302,26 +310,13 @@ finish:
     return ret;
 }
 
-void WiresharkMainWindow::filterPackets(QString new_filter, bool force)
+void WiresharkMainWindow::applyFilter(QString new_filter, bool force)
 {
     cf_status_t cf_status;
 
     cf_status = cf_filter_packets(CaptureFile::globalCapFile(), new_filter.toUtf8().data(), force);
 
     if (cf_status == CF_OK) {
-        if (new_filter.length() > 0) {
-            int index = df_combo_box_->findText(new_filter);
-            if (index == -1) {
-                df_combo_box_->insertItem(0, new_filter);
-                df_combo_box_->setCurrentIndex(0);
-            } else {
-                df_combo_box_->setCurrentIndex(index);
-            }
-        } else {
-            df_combo_box_->lineEdit()->clear();
-        }
-        // Only after the display filter has been updated,
-        // disable the arrow button
         emit displayFilterSuccess(true);
     } else {
         emit displayFilterSuccess(false);
@@ -388,6 +383,7 @@ void WiresharkMainWindow::updatePreferenceActions()
     main_ui_->actionViewPacketDetails->setEnabled(prefs_has_layout_pane_content(layout_pane_content_pdetails));
     main_ui_->actionViewPacketBytes->setEnabled(prefs_has_layout_pane_content(layout_pane_content_pbytes));
     main_ui_->actionViewPacketDiagram->setEnabled(prefs_has_layout_pane_content(layout_pane_content_pdiagram));
+    enableAggregationView(prefs.aggregation_fields_num > 0);
 
     main_ui_->actionViewNameResolutionPhysical->setChecked(gbl_resolv_flags.mac_name);
     main_ui_->actionViewNameResolutionNetwork->setChecked(gbl_resolv_flags.network_name);
@@ -407,6 +403,7 @@ void WiresharkMainWindow::updateRecentActions()
     main_ui_->actionViewPacketDetails->setChecked(recent.tree_view_show && prefs_has_layout_pane_content(layout_pane_content_pdetails));
     main_ui_->actionViewPacketBytes->setChecked(recent.byte_view_show && prefs_has_layout_pane_content(layout_pane_content_pbytes));
     main_ui_->actionViewPacketDiagram->setChecked(recent.packet_diagram_show && prefs_has_layout_pane_content(layout_pane_content_pdiagram));
+    main_ui_->actionAggregationView->setChecked(recent.aggregation_view);
 
     foreach(QAction *action, main_ui_->menuInterfaceToolbars->actions()) {
         if (g_list_find_custom(recent.interface_toolbars, action->text().toUtf8(), (GCompareFunc)strcmp)) {
@@ -443,13 +440,19 @@ void WiresharkMainWindow::updateRecentActions()
     main_ui_->actionGoAutoScroll->setChecked(recent.capture_auto_scroll);
 }
 
+void WiresharkMainWindow::updateAggregationView() const {
+    if (main_ui_->actionAggregationView->isChecked() || recent.aggregation_view) {
+        aggregationViewChanged(recent.aggregation_view);
+    }
+}
+
 // Don't connect to this directly. Connect to or emit filterAction(...) instead.
 void WiresharkMainWindow::queuedFilterAction(QString action_filter, FilterAction::Action action, FilterAction::ActionType type)
 {
     QString cur_filter, new_filter;
 
     if (!df_combo_box_) return;
-    cur_filter = df_combo_box_->lineEdit()->text();
+    cur_filter = df_combo_box_->text();
 
     switch (type) {
     case FilterAction::ActionTypePlain:
@@ -494,7 +497,7 @@ void WiresharkMainWindow::queuedFilterAction(QString action_filter, FilterAction
 
     switch (action) {
     case FilterAction::ActionApply:
-        df_combo_box_->lineEdit()->setText(new_filter);
+        df_combo_box_->setText(new_filter);
         df_combo_box_->applyDisplayFilter();
         break;
     case FilterAction::ActionColorize:
@@ -507,8 +510,7 @@ void WiresharkMainWindow::queuedFilterAction(QString action_filter, FilterAction
         main_ui_->searchFrame->findFrameWithFilter(new_filter);
         break;
     case FilterAction::ActionPrepare:
-        df_combo_box_->lineEdit()->setText(new_filter);
-        df_combo_box_->lineEdit()->setFocus();
+        df_combo_box_->setDisplayFilter(new_filter);
         break;
     case FilterAction::ActionWebLookup:
     {
@@ -1031,20 +1033,14 @@ void WiresharkMainWindow::stopCapture() {
 
 void WiresharkMainWindow::aggregationViewChanged(bool enable) const {
     recent.aggregation_view = enable;
-    main_ui_->actionAggregationView->setEnabled(false);
+    register_tap_listener_aggregation();
+    enableAggregationView(false);
     QTimer::singleShot(100,
         [this]() {
-            bool tap_registered = register_tap_listener_aggregation();
-            bool cf_ready = capture_file_.capFile() && !capture_file_.capFile()->read_lock;
-            if (recent.aggregation_view) {
-                if (cf_ready && tap_registered) {
-                    cf_retap_aggregation_packets(capture_file_.capFile(), recent.aggregation_view);
-                }
-            }
-            else if (cf_ready) {
+            if (capture_file_.capFile() && !capture_file_.capFile()->read_lock) {
                 cf_retap_aggregation_packets(capture_file_.capFile(), recent.aggregation_view);
             }
-            main_ui_->actionAggregationView->setEnabled(true);
+            enableAggregationView(prefs.aggregation_fields_num > 0);
         });
 }
 
@@ -1225,10 +1221,15 @@ void WiresharkMainWindow::setMenusForSelectedPacket()
         }
     }
 
-    main_ui_->actionCopyListAsText->setEnabled(selectedRows().count() > 0);
-    main_ui_->actionCopyListAsCSV->setEnabled(selectedRows().count() > 0);
-    main_ui_->actionCopyListAsYAML->setEnabled(selectedRows().count() > 0);
-    main_ui_->actionCopyListAsHTML->setEnabled(selectedRows().count() > 0);
+    QList<int> rows = selectedRows();
+    if (main_ui_->searchFrame) {
+        main_ui_->searchFrame->setSelectedFrames(rows, frame_selected);
+    }
+
+    main_ui_->actionCopyListAsText->setEnabled(rows.count() > 0);
+    main_ui_->actionCopyListAsCSV->setEnabled(rows.count() > 0);
+    main_ui_->actionCopyListAsYAML->setEnabled(rows.count() > 0);
+    main_ui_->actionCopyListAsHTML->setEnabled(rows.count() > 0);
 
     main_ui_->actionEditMarkSelected->setEnabled(frame_selected || multi_selection);
     main_ui_->actionEditMarkAllDisplayed->setEnabled(have_frames);
@@ -1286,6 +1287,7 @@ void WiresharkMainWindow::setMenusForSelectedPacket()
     main_ui_->actionStatisticsTcpStreamTcptrace->setEnabled(is_tcp);
     main_ui_->actionStatisticsTcpStreamThroughput->setEnabled(is_tcp);
     main_ui_->actionStatisticsTcpStreamWindowScaling->setEnabled(is_tcp);
+    main_ui_->actionStatisticsTcpStreamDedupTable->setEnabled(is_tcp);
 
     main_ui_->actionSCTPAnalyseThisAssociation->setEnabled(is_sctp);
     main_ui_->actionSCTPShowAllAssociations->setEnabled(is_sctp);
@@ -1441,6 +1443,22 @@ void WiresharkMainWindow::startInterfaceCapture(bool valid, const QString captur
     }
 }
 
+void WiresharkMainWindow::onAppInitialized()
+{
+    // Post-initialization setup, run once the application is ready. Ordered: a
+    // few of these steps populate menus that later ones extend.
+    setFeaturesEnabled();
+    applyGlobalCommandLineOptions();
+    initViewColorizeMenu();
+    addStatsPluginsToMenu();
+    addDynamicMenus();
+    addPluginIFStructures();
+    initConversationMenus();
+    initExportObjectsMenus();
+    initFollowStreamMenus();
+    addDisplayFilterTranslationActions(main_ui_->menuEditCopy);
+}
+
 void WiresharkMainWindow::applyGlobalCommandLineOptions()
 {
     if (global_dissect_options.time_format != TS_NOT_SET) {
@@ -1581,11 +1599,6 @@ void WiresharkMainWindow::reloadLuaPlugins()
         redissectPackets();
     }
 
-    /* Notify the Lua subsystem that the reload is fully complete,
-     * including cf_reload/redissect.  This must happen AFTER the
-     * file has been fully re-read. */
-    wslua_reload_done();
-
     mainApp->setReloadingLua(false);
     SimpleDialog::displayQueuedMessages();
 #endif
@@ -1715,7 +1728,7 @@ void WiresharkMainWindow::setFeaturesEnabled(bool enabled)
 
 void WiresharkMainWindow::on_actionNewDisplayFilterExpression_triggered()
 {
-    main_ui_->filterExpressionFrame->addExpression(df_combo_box_->lineEdit()->text());
+    main_ui_->filterExpressionFrame->addExpression(df_combo_box_->text());
 }
 
 void WiresharkMainWindow::onFilterSelected(QString filterText, bool prepare)
@@ -1751,7 +1764,7 @@ void WiresharkMainWindow::openTapParameterDialog(const QString cfg_str, const QS
     if (!tp_dialog) return;
 
     connect(tp_dialog, &TapParameterDialog::filterAction, this, &WiresharkMainWindow::filterAction);
-    connect(tp_dialog, &TapParameterDialog::updateFilter, df_combo_box_->lineEdit(), &QLineEdit::setText);
+    connect(tp_dialog, &TapParameterDialog::updateFilter, df_combo_box_, &QLineEdit::setText);
     tp_dialog->show();
 }
 
@@ -2280,12 +2293,14 @@ void WiresharkMainWindow::findPacket()
         return;
     }
     setPreviousFocus();
-    if (!main_ui_->searchFrame->isVisible()) {
-        showAccordionFrame(main_ui_->searchFrame, true);
+    SearchFrame *sf = main_ui_->searchFrame;
+    if (!sf->isVisible()) {
+        sf->setInPacketMode(false);
+        showAccordionFrame(sf, true);
     } else {
-        main_ui_->searchFrame->animatedHide();
+        sf->cancelSearch();
     }
-    main_ui_->searchFrame->setFocus();
+    sf->setFocus();
 }
 
 void WiresharkMainWindow::editTimeShift()
@@ -2481,7 +2496,6 @@ void WiresharkMainWindow::showPreferencesDialog(QString module_name)
     pref_dialog->setWindowModality(Qt::ApplicationModal);
     pref_dialog->setAttribute(Qt::WA_DeleteOnClose);
     pref_dialog->show();
-    pref_dialog->enableAggregationOptions(!main_ui_->actionAggregationView->isChecked());
 }
 
 // View Menu
@@ -2518,19 +2532,16 @@ void WiresharkMainWindow::connectViewMenuActions()
     connect(main_ui_->actionViewNameResolutionTransport, &QAction::triggered, this,
             [this]() { setNameResolution(); });
 
-    connect(main_ui_->actionViewZoomIn, &QAction::triggered, this, [this]() {
-        recent.gui_zoom_level++;
-        zoomText();
+    connect(main_ui_->actionViewZoomIn, &QAction::triggered, this, []() {
+        FontManager::instance()->zoomIn();
     });
 
-    connect(main_ui_->actionViewZoomOut, &QAction::triggered, this, [this]() {
-        recent.gui_zoom_level--;
-        zoomText();
+    connect(main_ui_->actionViewZoomOut, &QAction::triggered, this, []() {
+        FontManager::instance()->zoomOut();
     });
 
-    connect(main_ui_->actionViewNormalSize, &QAction::triggered, this, [this]() {
-        recent.gui_zoom_level = 0;
-        zoomText();
+    connect(main_ui_->actionViewNormalSize, &QAction::triggered, this, []() {
+        FontManager::instance()->resetZoom();
     });
 
     connect(main_ui_->actionViewExpandSubtrees, &QAction::triggered,
@@ -2603,6 +2614,11 @@ void WiresharkMainWindow::connectViewMenuActions()
     connect(main_ui_->actionViewInternalsKeyboardShortcuts, &QAction::triggered, this, [this]() {
         KeyboardShortcutsDialog *keyboard_shortcuts_dlg = new KeyboardShortcutsDialog(this);
         keyboard_shortcuts_dlg->show();
+    });
+
+    connect(main_ui_->actionViewInternalsThemeDebug, &QAction::triggered, this, [this]() {
+        ThemeDebugDialog *theme_debug_dlg = new ThemeDebugDialog(this);
+        theme_debug_dlg->show();
     });
 
     connect(main_ui_->actionViewShowPacketInNewWindow, &QAction::triggered, this,
@@ -2774,11 +2790,6 @@ void WiresharkMainWindow::setNameResolution()
     prefs_main_write();
 }
 
-void WiresharkMainWindow::zoomText()
-{
-    mainApp->zoomTextFont(recent.gui_zoom_level);
-}
-
 void WiresharkMainWindow::showColoringRulesDialog()
 {
     ColoringRulesDialog *coloring_rules_dialog = new ColoringRulesDialog(this);
@@ -2900,7 +2911,6 @@ void WiresharkMainWindow::openPacketDialog(bool from_reference)
                 main_ui_->preferenceEditorFrame, SLOT(editPreference(pref_t*,module_t*)));
 
         connect(this, &WiresharkMainWindow::closePacketDialogs, packet_dialog, &PacketDialog::close);
-        zoomText(); // Emits mainApp->zoomMonospaceFont(QFont)
 
         packet_dialog->show();
     }
@@ -3088,7 +3098,7 @@ void WiresharkMainWindow::connectCaptureMenuActions()
 #ifdef HAVE_LIBPCAP
     connect(main_ui_->actionCaptureRefreshInterfaces, &QAction::triggered, this, [this]() {
         main_ui_->actionCaptureRefreshInterfaces->setEnabled(false);
-        mainApp->refreshLocalInterfaces();
+        interfaceListManager()->requestRefresh(true);
         main_ui_->actionCaptureRefreshInterfaces->setEnabled(true);
     });
 #endif
@@ -3107,8 +3117,6 @@ void WiresharkMainWindow::showCaptureOptionsDialog()
                 this->welcome_page_, &WelcomePage::interfaceSelected);
         connect(capture_options_dialog_, &CaptureOptionsDialog::interfacesChanged,
                 this->welcome_page_->getInterfaceFrame(), &InterfaceFrame::updateSelectedInterfaces);
-        connect(capture_options_dialog_, &CaptureOptionsDialog::interfaceListChanged,
-                this->welcome_page_->getInterfaceFrame(), &InterfaceFrame::interfaceListChanged);
         connect(capture_options_dialog_, &CaptureOptionsDialog::captureFilterTextEdited,
                 this->welcome_page_, &WelcomePage::setCaptureFilterText);
         // Propagate selection changes from main UI to dialog.
@@ -3200,7 +3208,7 @@ void WiresharkMainWindow::connectAnalyzeMenuActions()
         DisplayFilterExpressionDialog *dfe_dialog = new DisplayFilterExpressionDialog(this);
 
         connect(dfe_dialog, &DisplayFilterExpressionDialog::insertDisplayFilter,
-                qobject_cast<SyntaxLineEdit *>(df_combo_box_->lineEdit()), &SyntaxLineEdit::insertFilter);
+                df_combo_box_, &FilterEdit::insertFilter);
 
         dfe_dialog->show();
     });
@@ -3320,7 +3328,7 @@ void WiresharkMainWindow::applyConversationFilter()
 
     if (conv_action->isFilterValid(pinfo)) {
 
-        df_combo_box_->lineEdit()->setText(conv_filter);
+        df_combo_box_->setText(conv_filter);
         df_combo_box_->applyDisplayFilter();
     }
 }
@@ -3337,7 +3345,7 @@ void WiresharkMainWindow::applyExportObject()
 }
 
 void WiresharkMainWindow::openFollowStreamDialog(int proto_id, unsigned stream_num, unsigned sub_stream_num, bool use_stream_index) {
-    FollowStreamDialog *fsd = new FollowStreamDialog(*this, capture_file_, proto_id);
+    FollowStreamDialog *fsd = new FollowStreamDialog(*this, capture_file_, proto_id, getFilter());
     connect(fsd, &FollowStreamDialog::updateFilter, this, &WiresharkMainWindow::filterPackets);
     connect(fsd, &FollowStreamDialog::goToPacket, this, [=](int packet_num) {packet_list_->goToPacket(packet_num);});
     fsd->addCodecs(text_codec_map_);
@@ -3345,9 +3353,9 @@ void WiresharkMainWindow::openFollowStreamDialog(int proto_id, unsigned stream_n
     if (use_stream_index) {
         // If a specific conversation was requested, then ignore any previous
         // display filters and display all related packets.
-        fsd->follow("", true, stream_num, sub_stream_num);
+        fsd->follow(true, stream_num, sub_stream_num);
     } else {
-        fsd->follow(getFilter());
+        fsd->follow();
     }
 }
 
@@ -3423,8 +3431,7 @@ void WiresharkMainWindow::statCommandWlanStatistics(const char *arg, void *)
 // -z expert
 void WiresharkMainWindow::statCommandExpertInfo(const char *, void *)
 {
-    const DisplayFilterEdit *df_edit = dynamic_cast<DisplayFilterEdit *>(df_combo_box_->lineEdit());
-    ExpertInfoDialog *expert_dialog = new ExpertInfoDialog(*this, capture_file_, df_edit->text());
+    ExpertInfoDialog *expert_dialog = new ExpertInfoDialog(*this, capture_file_, df_combo_box_->text());
 
     connect(expert_dialog->getExpertInfoView(), &ExpertInfoTreeView::goToPacket,
             this, [=](int packet_num) {packet_list_->goToPacket(packet_num);});
@@ -3468,6 +3475,8 @@ void WiresharkMainWindow::connectStatisticsMenuActions()
         SequenceDialog *sequence_dialog = new SequenceDialog(*this, capture_file_);
         sequence_dialog->show();
     });
+
+    connect(main_ui_->actionStatisticsDistribution, &QAction::triggered, this, [this]() { showDistributionDialog(QString()); } );
 
     connect(main_ui_->actionStatisticsCollectd, &QAction::triggered, this, [=]() { openStatisticsTreeDialog("collectd"); });
     connect(main_ui_->actionStatisticsDNS, &QAction::triggered, this, [=]() { openStatisticsTreeDialog("dns"); });
@@ -3547,6 +3556,7 @@ void WiresharkMainWindow::connectStatisticsMenuActions()
     connect(main_ui_->actionStatisticsTcpStreamThroughput, &QAction::triggered, this, [=]() { openTcpStreamDialog(GRAPH_THROUGHPUT); });
     connect(main_ui_->actionStatisticsTcpStreamRoundTripTime, &QAction::triggered, this, [=]() { openTcpStreamDialog(GRAPH_RTT); });
     connect(main_ui_->actionStatisticsTcpStreamWindowScaling, &QAction::triggered, this, [=]() { openTcpStreamDialog(GRAPH_WSCALE); });
+    connect(main_ui_->actionStatisticsTcpStreamDedupTable, &QAction::triggered, this, &WiresharkMainWindow::openTcpDedupDialog);
 
     connect(main_ui_->actionStatisticsANCP, &QAction::triggered, this, [=]() { openStatisticsTreeDialog("ancp"); });
 
@@ -3576,6 +3586,26 @@ void WiresharkMainWindow::openTcpStreamDialog(int graph_type)
     if (stream_dialog->result() == QDialog::Accepted) {
         stream_dialog->show();
     }
+}
+
+void WiresharkMainWindow::openTcpDedupDialog()
+{
+    /* Defer construction by one event-loop tick so the right-click context
+     * menu (if that's what triggered this slot) has fully torn down before
+     * any new dialog widgets are created. Avoids a class of crashes where a
+     * mouse event posted to a context-menu child widget gets delivered after
+     * the new dialog has been built, racing the menu teardown. */
+    QTimer::singleShot(0, this, [this]() {
+        TcpDedupDialog *dedup_dialog = new TcpDedupDialog(*this, capture_file_);
+        connect(dedup_dialog, &TcpDedupDialog::goToPacket, this,
+                [=](int packet_num) { packet_list_->goToPacket(packet_num); });
+        if (dedup_dialog->result() == QDialog::Accepted) {
+            dedup_dialog->show();
+        }
+        /* Rejected path: TcpDedupDialog's ctor called done(QDialog::Rejected)
+         * which, combined with WA_DeleteOnClose, has already scheduled
+         * deleteLater(). */
+    });
 }
 
 // -z mcast,stat
@@ -3618,11 +3648,8 @@ static uat_field_t io_graph_packet_fields[] = {
 
 void WiresharkMainWindow::showIOGraphDialog(io_graph_item_unit_t value_units, QString yfield)
 {
-    const DisplayFilterEdit *df_edit = qobject_cast<DisplayFilterEdit *>(df_combo_box_->lineEdit());
     IOGraphDialog *iog_dialog = nullptr;
-    QString displayFilter;
-    if (df_edit)
-        displayFilter = df_edit->text();
+    QString displayFilter = df_combo_box_->text();
 
     if (!yfield.isEmpty()) {
         QList<IOGraphDialog *> iographdialogs = findChildren<IOGraphDialog *>();
@@ -3667,10 +3694,9 @@ void WiresharkMainWindow::showIOGraphDialog(io_graph_item_unit_t value_units, QS
 
 void WiresharkMainWindow::openIOGraph(bool filtered, QVector<uint> typed_conv_ids, QVector<QVariant> typed_conv_agg)
 {
-    const DisplayFilterEdit *df_edit = qobject_cast<DisplayFilterEdit *>(df_combo_box_->lineEdit());
     QString displayFilter;
-    if (df_edit && filtered)
-        displayFilter = df_edit->text();
+    if (filtered)
+        displayFilter = df_combo_box_->text();
 
     /* the filters to open the IOGraph dialog with */
     QVector<QString> conv_filters;
@@ -3775,8 +3801,7 @@ void WiresharkMainWindow::showPlotDialog(const QString& y_field, bool filtered)
         /* Add mew plot with supplied parameters */
         QString d_filter = QString();
         if (filtered) {
-            const DisplayFilterEdit* df_edit = qobject_cast<DisplayFilterEdit*>(df_combo_box_->lineEdit());
-            if (df_edit) d_filter = df_edit->text();
+            d_filter = df_combo_box_->text();
         }
 
         dialog->addPlot(true, d_filter, y_field);
@@ -3849,6 +3874,16 @@ void WiresharkMainWindow::connectTelephonyMenuActions()
     connect(main_ui_->actionTelephonySipFlows, &QAction::triggered, this, [=]() {
         VoipCallsDialog *dialog = VoipCallsDialog::openVoipCallsDialogSip(*this, capture_file_, packet_list_);
         dialog->show();
+    });
+
+    connect(action_telephony_imsi_list_, &QAction::triggered, this, [=]() {
+        ImsiListDialog *imsi_dialog = new ImsiListDialog(*this, capture_file_);
+        connect(imsi_dialog, &ImsiListDialog::updateFilter, this, &WiresharkMainWindow::filterPackets);
+        connect(imsi_dialog, &ImsiListDialog::goToPacket, this, [this](int packet) {
+            if (packet_list_) packet_list_->goToPacket(packet);
+        });
+        imsi_dialog->setAttribute(Qt::WA_DeleteOnClose);
+        imsi_dialog->show();
     });
 }
 
@@ -4142,6 +4177,18 @@ void WiresharkMainWindow::showEndpointsDialog()
             });
     connect(endp_dialog, &EndpointDialog::openTcpStreamGraph, this, &WiresharkMainWindow::openTcpStreamDialog);
     endp_dialog->show();
+}
+
+void WiresharkMainWindow::showDistributionDialog(const QString &abbreviation)
+{
+    DistributionDialog *dis_dialog = new DistributionDialog(*this, capture_file_, abbreviation);
+    dis_dialog->show();
+    connect(dis_dialog, &DistributionDialog::filterAction, this, &WiresharkMainWindow::filterAction);
+}
+
+void WiresharkMainWindow::showDistributionDialog()
+{
+    showDistributionDialog(QString());
 }
 
 void WiresharkMainWindow::externalMenuItemTriggered()

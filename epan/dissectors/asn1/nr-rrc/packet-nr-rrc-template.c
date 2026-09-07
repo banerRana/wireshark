@@ -1,7 +1,7 @@
 /* packet-nr-rrc-template.c
  * NR;
  * Radio Resource Control (RRC) protocol specification
- * (3GPP TS 38.331 V19.2.0 Release 19) packet dissection
+ * (3GPP TS 38.331 V19.3.0 Release 19) packet dissection
  * Copyright 2018-2026, Pascal Quantin
  *
  * Wireshark - Network traffic analyzer
@@ -64,9 +64,9 @@ static reassembly_table nr_rrc_dcch_segment_reassembly_table;
 static bool nr_rrc_nas_in_root_tree;
 static bool nr_rrc_reassemble_dcch_segments;
 
-extern int proto_mac_nr;
-extern int proto_rlc_nr;
-extern int proto_pdcp_nr;
+static int proto_mac_nr;
+static int proto_rlc_nr;
+static int proto_pdcp_nr;
 
 /* Include constants */
 #include "packet-nr-rrc-val.h"
@@ -1228,4 +1228,8 @@ proto_reg_handoff_nr_rrc(void)
   lte_rrc_conn_reconf_compl_handle = find_dissector("lte-rrc.rrc_conn_reconf_compl");
   lte_rrc_ul_dcch_handle = find_dissector("lte-rrc.ul.dcch");
   lte_rrc_dl_dcch_handle = find_dissector("lte-rrc.dl.dcch");
+
+  proto_mac_nr = proto_get_id_by_filter_name("mac-nr");
+  proto_rlc_nr = proto_get_id_by_filter_name("rlc-nr");
+  proto_pdcp_nr = proto_get_id_by_filter_name("pdcp-nr");
 }

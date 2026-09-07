@@ -19,19 +19,25 @@
 extern "C" {
 #endif /* __cplusplus */
 
+/**
+ * @brief Describes a single file belonging to a capture file set.
+ */
 typedef struct _fileset_entry {
-    char     *fullname;      /* File name with path (g_strdup'ed) */
-    char     *name;          /* File name without path (g_strdup'ed) */
-    time_t   ctime;          /* create time */
-    time_t   mtime;          /* last modified time */
-    int64_t  size;           /* size of file in bytes */
-    bool     current;        /* is this the currently loaded file? */
+    char    *fullname; /**< File path including directory (heap-allocated via g_strdup) */
+    char    *name;     /**< File name without directory path (heap-allocated via g_strdup) */
+    time_t   ctime;    /**< File creation timestamp */
+    time_t   mtime;    /**< File last-modified timestamp */
+    int64_t  size;     /**< File size in bytes */
+    bool     current;  /**< True if this entry represents the currently loaded capture file */
 } fileset_entry;
 
+/**
+ * @brief Describes the naming pattern detected in a capture file set's filenames.
+ */
 typedef enum {
-    FILESET_NO_MATCH,
-    FILESET_TIME_NUM,
-    FILESET_NUM_TIME
+    FILESET_NO_MATCH,  /**< Filename does not match any recognized file set naming pattern */
+    FILESET_TIME_NUM,  /**< Filename follows the timestamp-then-sequence-number pattern */
+    FILESET_NUM_TIME   /**< Filename follows the sequence-number-then-timestamp pattern */
 } fileset_match_t;
 
 /* helper: is this a probable file of a file set (does the naming pattern match)?
@@ -80,17 +86,28 @@ extern void fileset_delete(void);
 /**
  * @brief Get the current directory name.
  *
- * @return const char* - The current directory name, or NULL if not available.
+ * @return The current directory name, or NULL if not available.
  */
-/* get the current directory name */
 extern const char *fileset_get_dirname(void);
 
+/**
+ * @brief Get the next fileset entry.
+ *
+ * @return The next fileset entry, or NULL if there is no next entry.
+ */
 extern fileset_entry *fileset_get_next(void);
+
+/**
+ * @brief Get the previous fileset entry.
+ *
+ * @return The previous fileset entry, or NULL if there is no previous entry.
+ */
 extern fileset_entry *fileset_get_previous(void);
 
 /**
- * Add an entry to our dialog / window. Called by fileset_update_dlg.
- * Must be implemented in the UI.
+ * @brief Add an entry to our dialog / window.
+ *
+ * Called by fileset_update_dlg. Must be implemented in the UI.
  *
  * @param entry The new fileset entry.
  * @param window Window / dialog reference provided by the UI code.
@@ -106,8 +123,9 @@ extern void fileset_dlg_add_file(fileset_entry *entry, void *window);
 extern void fileset_dlg_begin_add_file(void *window);
 
 /**
- * Notify our dialog / window that we're done adding files. Called by fileset_update_dlg.
- * Must be implemented in the UI.
+ * @brief Notify our dialog / window that we're done adding files.
+ *
+ * Called by fileset_update_dlg. Must be implemented in the UI.
  *
  * @param window Window / dialog reference provided by the UI code.
  */

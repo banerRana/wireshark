@@ -18,9 +18,8 @@
 
 #include "welcome_page.h"
 #include <ui_welcome_page.h>
-#include <ui/qt/utils/tango_colors.h>
-#include <ui/qt/utils/color_utils.h>
 #include <ui/qt/utils/qt_ui_utils.h>
+#include <ui/qt/utils/theme_manager.h>
 #include <ui/qt/models/recentcapturefiles_list_model.h>
 #include <ui/qt/utils/workspace_state.h>
 #include <ui/qt/widgets/capture_card_widget.h>
@@ -57,10 +56,11 @@ WelcomePage::WelcomePage(QWidget *parent) :
     setAccessibleName(tr("Welcome page"));
     setAccessibleDescription(tr("The %1 welcome page provides access to recent files, capture interfaces, and learning resources.").arg(mainApp->applicationName()));
 
-    welcome_ui_->tipsSectionCard->setVisible(true);
+    /* Initially set the sidebar hidden, it will be made visible or not by
+     * applySidebarPreferences. */
+    welcome_ui_->sidebarContainer->setVisible(false);
 
     updateStyleSheets();
-    applySidebarPreferences();
 
     /* Handle Recent Capture Files List */
     // In welcome_page.cpp or wherever the list is created
@@ -99,7 +99,7 @@ WelcomePage::WelcomePage(QWidget *parent) :
 
     welcome_ui_->openFileSectionRecentList->setTextElideMode(Qt::ElideLeft);
 
-    connect(mainApp, &MainApplication::appInitialized, this, &WelcomePage::appInitialized);
+    mainApp->whenInitialized(this, [this]() { appInitialized(); });
     connect(mainApp, &MainApplication::preferencesChanged, this, &WelcomePage::applySidebarPreferences);
 
     // "Capture" header click opens Capture Options dialog
@@ -153,7 +153,6 @@ void WelcomePage::appInitialized()
 
     splash_overlay_->fadeOut();
     splash_overlay_ = NULL;
-    welcome_ui_->tipsSectionCard->startRotation();
 
     // Ensure sidebar layout adapts to the restored window size.
     // resizeEvent may have fired before the layout was finalized.
@@ -166,9 +165,13 @@ void WelcomePage::applySidebarPreferences()
     // hasVisibleSlides() checks if there are any slides that should be shown, as well as the user's preferences.
     bool slidesAreVisible = welcome_ui_->tipsSectionCard->hasVisibleSlides();
 
+    welcome_ui_->tipsSectionCard->setSlideDeckFreeze(true);
     welcome_ui_->tipsSectionCard->setSlideTypeVisible(BannerEvents, recent.gui_welcome_page_sidebar_tips_events);
     welcome_ui_->tipsSectionCard->setSlideTypeVisible(BannerSponsorship, recent.gui_welcome_page_sidebar_tips_sponsorship);
     welcome_ui_->tipsSectionCard->setSlideTypeVisible(BannerTips, recent.gui_welcome_page_sidebar_tips_tips);
+    welcome_ui_->tipsSectionCard->setSlidesTest(recent.gui_welcome_page_sidebar_tips_slides_test);
+    welcome_ui_->tipsSectionCard->setSlideDeckFreeze(false);
+    welcome_ui_->tipsSectionCard->setAutoAdvance(recent.gui_welcome_page_sidebar_tips_auto_advance);
     welcome_ui_->tipsSectionCard->setAutoAdvanceInterval(recent.gui_welcome_page_sidebar_tips_interval);
     welcome_ui_->tipsSectionCard->setVisible(slidesAreVisible);
 
@@ -178,6 +181,13 @@ void WelcomePage::applySidebarPreferences()
     // so the main content area can expand to fill the full window width.
     bool sidebar_visible = slidesAreVisible || recent.gui_welcome_page_sidebar_learn_visible;
     welcome_ui_->sidebarContainer->setVisible(sidebar_visible);
+
+    // Ensure sidebar layout adapts to the restored window size.
+    // (XXX - This really only needs to happen if one of the cards is switching
+    // to visible, and only if this is the first time being shown or if a
+    // ResizeEvent occurred while hidden. But preference changes should be
+    // rare.)
+    updateSidebarLayout();
 }
 
 bool WelcomePage::event(QEvent *event)
@@ -366,54 +376,7 @@ void WelcomePage::showCaptureFilesContextMenu(QPoint pos)
 
 void WelcomePage::updateStyleSheets()
 {
-    QString welcome_ss = QStringLiteral(
-                "WelcomePage {"
-                "  padding: 0;"
-                " }"
-                "WelcomePage, QAbstractItemView {"
-                "  background-color: palette(base);"
-                "  color: palette(text);"
-                " }"
-                "QAbstractItemView {"
-                "  border: 0;"
-                "}"
-                );
-#if !defined(Q_OS_WIN)
-    welcome_ss += QStringLiteral(
-                "QAbstractItemView:item:hover {"
-                "  background-color: %1;"
-                "  color: palette(text);"
-                "}"
-                )
-            .arg(ColorUtils::hoverBackground().name(QColor::HexArgb));
-#endif
-    setStyleSheet(welcome_ss);
-
-    QString title_button_ss = QStringLiteral(
-            "QLabel {"
-            "  color: %1;"
-            "}"
-            "QLabel::hover {"
-            "  color: %2;"
-            "}"
-            )
-            .arg(QColor(tango_aluminium_4).name())   // Text color
-            .arg(QColor(tango_sky_blue_4).name());   // Hover color
-
-    welcome_ui_->openFileSectionLabel->setStyleSheet(title_button_ss);
-
-    welcome_ui_->openFileSectionRecentList->setStyleSheet(
-            "QListView::item {"
-            "  padding-top: 0.2em;"
-            "  padding-bottom: 0.2em;"
-            "}"
-            "QListView::item::first {"
-            "  padding-top: 0;"
-            "}"
-            "QListView::item::last {"
-            "  padding-bottom: 0;"
-            "}"
-            );
+    setStyleSheet(ThemeManager::styleSheet(QStringLiteral("welcome-page")));
 
     /* LearnCardWidget and CaptureCardWidget manage their own stylesheets */
 }

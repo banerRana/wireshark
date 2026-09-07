@@ -92,10 +92,13 @@ int sharkd_filter(const char *dftext, uint8_t **result);
  */
 frame_data *sharkd_get_frame(uint32_t framenum);
 
+/**
+ * @brief Return status for a frame dissection request.
+ */
 enum dissect_request_status {
-  DISSECT_REQUEST_SUCCESS,
-  DISSECT_REQUEST_NO_SUCH_FRAME,
-  DISSECT_REQUEST_READ_ERROR
+    DISSECT_REQUEST_SUCCESS,       /**< The requested frame was found and successfully dissected */
+    DISSECT_REQUEST_NO_SUCH_FRAME, /**< The requested frame number does not exist in the capture */
+    DISSECT_REQUEST_READ_ERROR     /**< The frame data could not be read due to an I/O error */
 };
 enum dissect_request_status
 
@@ -119,13 +122,20 @@ sharkd_dissect_request(uint32_t framenum, uint32_t frame_ref_num,
                        column_info *cinfo, uint32_t dissect_flags,
                        sharkd_dissect_func_t cb, void *data,
                        int *err, char **err_info);
+
+/**
+ * @brief Get the modified packet block for a given frame, if available.
+ *
+ * @param fd Pointer to the frame data structure.
+ * @return The modified packet block, or NULL if no modification is available.
+ */
 wtap_block_t sharkd_get_modified_block(const frame_data *fd);
 
 /**
  * @brief Get the packet block for a given frame.
  *
  * @param fd Pointer to the frame data structure.
- * @return wtap_block_t The packet block, or NULL if an error occurred.
+ * @return The packet block, or NULL if an error occurred.
  */
 wtap_block_t sharkd_get_packet_block(const frame_data *fd);
 

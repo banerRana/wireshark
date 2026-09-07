@@ -27,6 +27,7 @@
 
 #include "packet-btrfcomm.h"
 #include "packet-btsdp.h"
+#include "packet-etsi_card_app_toolkit.h"
 
 static int proto_bthfp;
 
@@ -170,6 +171,7 @@ static expert_field ei_cnum_itc;
 static expert_field ei_aplefm_out_of_range;
 static expert_field ei_aplsiri_out_of_range;
 static expert_field ei_iphoneaccev_key_out_of_range;
+static expert_field ei_xapl_info_format;
 static expert_field ei_xapl_features_reserved;
 static expert_field ei_parameter_blank;
 
@@ -511,8 +513,6 @@ static const value_string iphoneaccev_key_vals[] = {
 
 
 static const unit_name_string units_slash15 = { "/15", NULL };
-
-extern value_string_ext csd_data_rate_vals_ext;
 
 void proto_register_bthfp(void);
 void proto_reg_handoff_bthfp(void);
@@ -1096,6 +1096,10 @@ dissect_xapl_parameter(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     if (parameter_number == 0) {
         if (role == ROLE_HS) {
             pitem = proto_tree_add_item(tree, hf_xapl_accessory_info, tvb, offset, parameter_length, ENC_ASCII);
+            if (parameter_length < 14) {
+                expert_add_info(pinfo, pitem, &ei_xapl_info_format);
+                return true;
+            }
             ptree = proto_item_add_subtree(pitem, ett_bthfp_xapl_accessory_info);
 
             value = get_uint_hex_parameter(parameter_stream + (4 + 1) * 0, 4);
@@ -3218,6 +3222,7 @@ proto_register_bthfp(void)
         { &ei_aplefm_out_of_range,   { "bthfp.expert.aplefm.out_of_range", PI_PROTOCOL, PI_WARN, "Only 0-1 is valid", EXPFILL }},
         { &ei_aplsiri_out_of_range,  { "bthfp.expert.aplsiri.out_of_range", PI_PROTOCOL, PI_WARN, "Only 1-2 is valid", EXPFILL }},
         { &ei_iphoneaccev_key_out_of_range,  { "bthfp.expert.iphoneaccev.out_of_range", PI_PROTOCOL, PI_WARN, "Only 1-2 is valid", EXPFILL }},
+        { &ei_xapl_info_format,      { "bthfp.expert.xapl.short", PI_PROTOCOL, PI_WARN, "The first parameter must have the format XXXX-XXXX-XXXX", EXPFILL }},
         { &ei_xapl_features_reserved, { "bthfp.expert.xapl.reserved", PI_PROTOCOL, PI_WARN, "The reserved bits [6-31] shall be initialized to Zero", EXPFILL }}
     };
 

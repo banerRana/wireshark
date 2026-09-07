@@ -712,10 +712,10 @@ get_ber_len_size(uint32_t n)
  * \param maxsize is the maximum number of bytes we're allowed to write
  * \returns length of encoded value in bytes
  */
-static int
-encode_ber_len(uint8_t *ptr, uint32_t n, int maxsize)
+static uint32_t
+encode_ber_len(uint8_t *ptr, uint32_t n, uint32_t maxsize)
 {
-  int len = get_ber_len_size(n);
+  uint32_t len = get_ber_len_size(n);
   if (len > maxsize) return 0;
   if (len == 1) {
     *ptr = 0x7f & n;
@@ -784,7 +784,7 @@ static bool
 canonify_unencrypted_header(unsigned char *buff, uint32_t *offset, uint32_t buffsize)
 {
   const TOP_ELEMENT_CONTROL *t = canonifyTable;
-  uint32_t len, allocated;
+  uint32_t len, allocated, ret;
 
   for (t = canonifyTable; t->element != NULL; t++)
   {
@@ -795,8 +795,13 @@ canonify_unencrypted_header(unsigned char *buff, uint32_t *offset, uint32_t buff
     if (*(t->element) != NULL) {
       if (t->addtag) {
         /* recreate original tag and length */
+        if (buffsize < *offset + 1)
+            return false;
         buff[(*offset)++] = t->tag;
-        (*offset) += encode_ber_len(&buff[*offset], len, 4);
+        ret = encode_ber_len(&buff[*offset], len, MIN(buffsize - *offset, 4));
+        if (ret == 0)
+            return false;
+        (*offset) += ret;
       }
       if (t->truncate) {
         len = 3+2*get_ber_len_size(len);
@@ -952,7 +957,7 @@ dissect_epsem(tvbuff_t *tvb, int offset, uint32_t len, packet_info *pinfo, proto
   proto_item *item = NULL;
   uint8_t flags;
   int local_offset;
-  int len2;
+  unsigned len2;
   int cmd_err;
   bool ind;
   unsigned char *buffer;
@@ -1034,14 +1039,14 @@ dissect_epsem(tvbuff_t *tvb, int offset, uint32_t len, packet_info *pinfo, proto
      * so we fetch such pairs until there isn't anything left (except possibly
      * the <mac>).
      */
-    while (tvb_offset_exists(epsem_buffer, local_offset+(hasmac?5:1))) {
+    while (tvb_captured_length_remaining(epsem_buffer, local_offset) > (hasmac?4U:0U)) {
       if (ber_len_ok(epsem_buffer, local_offset)) {
         local_offset = dissect_ber_length(pinfo, tree, epsem_buffer, local_offset, (uint32_t *)&len2, &ind);
       } else {
         expert_add_info(pinfo, tree, &ei_c1222_epsem_ber_length_error);
         return offset+len;
       }
-      if (tvb_offset_exists(epsem_buffer, local_offset+len2-1)) {
+      if (tvb_captured_length_remaining(epsem_buffer, local_offset) >= len2) {
         cmd_err = tvb_get_uint8(epsem_buffer, local_offset);
         ct = proto_tree_add_item(tree, hf_c1222_epsem_total, epsem_buffer, local_offset, len2, ENC_NA);
         cmd_tree = proto_item_add_subtree(ct, ett_c1222_cmd);
@@ -1054,7 +1059,7 @@ dissect_epsem(tvbuff_t *tvb, int offset, uint32_t len, packet_info *pinfo, proto
     }
   }
   if (hasmac) {
-    if (tvb_offset_exists(epsem_buffer, local_offset+4-1)) {
+    if (tvb_captured_length_remaining(epsem_buffer, local_offset) >= 4) {
       yt = proto_tree_add_item(tree, hf_c1222_epsem_mac, epsem_buffer, local_offset, 4, ENC_NA);
       /* now we have enough information to fill in the crypto subtree */
       crypto_tree = proto_item_add_subtree(yt, ett_c1222_crypto);

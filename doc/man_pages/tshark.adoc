@@ -393,6 +393,24 @@ carriage return, form feed, and vertical tab) backspace, and the
 backslash will be replaced in field values by C-style escapes, e.g.
 "\n" for line feed.  If *n*, field value strings will be printed as-is.
 Defaults to *y*.
+
+*escape_formulas=y|n* If *y*, prefix any field value that a spreadsheet
+application would evaluate as a formula with an apostrophe, so that packet
+data cannot inject a formula into a CSV file that is later opened in a
+spreadsheet.  Values that begin with *=*, *+*, *-* or *@* (optionally
+preceded by blanks) are affected.  Note that this changes the exported
+values, and in particular that it also applies to legitimately negative
+numbers, so it is off by default; enable it when the output is destined for
+a spreadsheet rather than for further machine processing.  Defaults to *n*.
+
+*split=*<proto> Split the output into one row per message instance of
+the protocol <proto> within a packet.  This is useful when a single
+packet contains multiple protocol messages (e.g., several Diameter
+messages bundled in one SCTP packet).  Fields that belong to a specific
+message instance are output only on that instance's row, while fields
+not under any instance (e.g., frame-level fields) are repeated on every
+row.  Only applies to *-T fields* CSV output.  By default, no splitting
+is performed.
 --
 
 -f  <capture filter>::
@@ -648,9 +666,6 @@ read data from the standard input.  On Windows systems, pipe names must be
 of the form +"\\.\pipe\+*pipename*".  Data read from pipes must be in
 standard pcapng or pcap format. Pcapng data must have the same
 endianness as the capturing host.
-
-"TCP@<host>:<port>" causes *TShark* to attempt to connect to the
-specified port on the specified host and read pcapng or pcap data.
 
 This option can occur multiple times. When capturing from multiple
 interfaces, the capture file will be saved in pcapng format.
@@ -1513,6 +1528,7 @@ in *TShark*, only in *Wireshark*.
 __mode__ specifies the output mode.  It can be one of:
 
   ascii  ASCII output with dots for non-printable characters
+  carray C arrays of chars
   ebcdic EBCDIC output with dots for non-printable characters
   hex    Hexadecimal and ASCII data with offsets
   raw    Hexadecimal data
@@ -2342,6 +2358,11 @@ configuring color filters.
 If a key appears multiple times in an object, only write it a single time with
 as value a json array containing all the separate values. (Only works with
 *-T json*)
+
+--json-compact::
+Output compact JSON without indentation or extra whitespace. This significantly
+reduces output size and improves performance. (Only works with *-T json* and
+*-T jsonraw*)
 
 --elastic-mapping-filter <protocol>,<protocol>,...::
 +

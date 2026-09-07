@@ -8,14 +8,11 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
 
-from __future__ import print_function
-
 
 import argparse
 import os
 import subprocess
 import sys
-
 
 SYSTEMROOT = os.environ['SYSTEMROOT']
 
@@ -32,7 +29,7 @@ def warning(msg):
 
 def error(msg):
     print("Error: " + msg, file=sys.stderr)
-    exit(1)
+    sys.exit(1)
 
 
 def call_ntldd(filename):
@@ -40,7 +37,7 @@ def call_ntldd(filename):
         output = subprocess.check_output(['ntldd', '-R', filename], stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as e:
         error("'ntldd' failed with '" + str(e) + "'")
-    except WindowsError as e:
+    except OSError as e:
         error("Calling 'ntldd' failed with '" + str(e) + "' (have you installed 'mingw-w64-ntldd-git'?)")
     except Exception as e:
         error("Calling 'ntldd' failed with '" + str(e) + "'")
@@ -174,4 +171,4 @@ if __name__ == '__main__':
         for top_level_lib in top_level_libs:
             warning("Unused dependency " + top_level_lib)
 
-    exit(exit_code)
+    sys.exit(exit_code)

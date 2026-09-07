@@ -7,10 +7,7 @@
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
-
-#ifndef __PACKET_INFO_H__
-#define __PACKET_INFO_H__
-
+#pragma once
 #include "frame_data.h"
 #include "address.h"
 
@@ -40,6 +37,9 @@ struct conversation_element;
  */
 #define PINFO_HAS_TS            0x00000001  /**< time stamp */
 
+/**
+ * @brief Represents the metadata and indexing information for a single captured frame.
+ */
 typedef struct _packet_info {
   const char *current_proto;                          /**< Name of protocol currently being dissected */
   struct epan_column_info *cinfo;                     /**< Column formatting information */
@@ -158,7 +158,7 @@ typedef struct _packet_info {
   int16_t src_win_scale;                               /**< Rcv.Wind.Shift src applies when sending segments; -1 unknown; -2 disabled */
   int16_t dst_win_scale;                               /**< Rcv.Wind.Shift dst applies when sending segments; -1 unknown; -2 disabled */
 
-  GSList *proto_data;                                  /**< Per-packet protocol data */
+  wmem_list_t *proto_data;                             /**< Per-packet protocol data */
   GSList *frame_end_routines;                          /**< List of routines to execute after frame dissection */
 
   wmem_allocator_t *pool;                              /**< Memory pool scoped to this pinfo */
@@ -177,7 +177,12 @@ typedef struct _packet_info {
 
 /** @} */
 
-#endif /* __PACKET_INFO_H__ */
+#define PINFO_SRC(pi)		((pi)->use_conv_addr_port_endpoints ? conversation_addr_port_endpoints_addr1((pi)->conv_addr_port_endpoints) : &((pi)->src))
+#define PINFO_DST(pi)		((pi)->use_conv_addr_port_endpoints ? conversation_addr_port_endpoints_addr2((pi)->conv_addr_port_endpoints) : &((pi)->dst))
+#define PINFO_SRCPORT(pi)	((pi)->use_conv_addr_port_endpoints ? conversation_addr_port_endpoints_port1((pi)->conv_addr_port_endpoints) : (pi)->srcport)
+#define PINFO_DESTPORT(pi)	((pi)->use_conv_addr_port_endpoints ? conversation_addr_port_endpoints_port2((pi)->conv_addr_port_endpoints) : (pi)->destport)
+#define PINFO_NET_SRC(pi)		((pi)->use_conv_addr_port_endpoints ? conversation_addr_port_endpoints_addr1((pi)->conv_addr_port_endpoints) : &((pi)->net_src))
+#define PINFO_NET_DST(pi)		((pi)->use_conv_addr_port_endpoints ? conversation_addr_port_endpoints_addr2((pi)->conv_addr_port_endpoints) : &((pi)->net_dst))
 
 /*
  * Editor modelines

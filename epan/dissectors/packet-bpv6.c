@@ -45,6 +45,7 @@
 #include <epan/tfs.h>
 #include <epan/wscbor.h>
 #include <epan/exceptions.h>
+#include <wsutil/epochs.h>
 #include "packet-bpv6.h"
 #include "packet-cfdp.h"
 
@@ -383,7 +384,7 @@ add_dtn_time_to_tree(proto_tree *tree, tvbuff_t *tvb, int offset, int hf_dtn_tim
         return 0;
     }
 
-    dtn_time.secs = (time_t)(sdnv_value + 946684800);
+    dtn_time.secs = (time_t)(sdnv_value + EPOCH_DELTA_2000_01_01_00_00_00_UTC);
     offset += sdnv_length;
 
     dtn_time.nsecs = evaluate_sdnv(tvb, offset, &sdnv2_length);
@@ -412,7 +413,7 @@ add_sdnv_time_to_tree(proto_tree *tree, tvbuff_t *tvb, unsigned offset, int hf_s
         return 0;
     }
 
-    dtn_time.secs = (time_t)(sdnv_value + 946684800);
+    dtn_time.secs = (time_t)(sdnv_value + EPOCH_DELTA_2000_01_01_00_00_00_UTC);
     dtn_time.nsecs = 0;
     proto_tree_add_time(tree, hf_sdnv_time, tvb, offset, sdnv_length, &dtn_time);
 
@@ -1580,12 +1581,12 @@ display_extension_block(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, int
     }
     case BUNDLE_BLOCK_TYPE_PREVIOUS_HOP_INSERT:
     {
-        int scheme_length;
+        unsigned scheme_length;
 
         proto_tree_add_item_ret_length(block_tree, hf_bundle_block_previous_hop_scheme, tvb, offset, 4, ENC_ASCII, &scheme_length);
         offset += scheme_length;
         proto_tree_add_item(block_tree, hf_bundle_block_previous_hop_eid, tvb, offset, block_length-scheme_length, ENC_ASCII);
-        if (block_length - scheme_length < 1) {
+        if ((unsigned)block_length < scheme_length + 1) {
             expert_add_info_format(pinfo, ti, &ei_bundle_offset_error, "Metadata Block Length Error");
             *lastheader = true;
             return offset;

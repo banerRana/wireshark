@@ -19278,11 +19278,11 @@ static int dissect_DIS_PARSER_SIGNAL_PDU(tvbuff_t *tvb, packet_info *pinfo, prot
         dis_info->info_payload_type = (uint8_t)DIS_ENCODING_TYPE(encodingScheme);
         dis_info->info_payload_type_str = val_to_str_const(DIS_ENCODING_TYPE(encodingScheme),
             DIS_PDU_Signal_Encoding_Type_Strings, "Unknown");
-    }
-    if ((encodingScheme & 0xC000) >> 14 == DIS_ENCODING_CLASS_ENCODED_AUDIO)
+
         col_append_fstr(pinfo->cinfo, COL_INFO,", Encoding Type=%s",
             val_to_str_const(DIS_ENCODING_TYPE(encodingScheme),
             DIS_PDU_Signal_Encoding_Type_Strings, "Unknown"));
+    }
 
     ti = proto_tree_add_item(tree, hf_dis_ens, tvb, offset, 2, ENC_BIG_ENDIAN);
     sub_tree = proto_item_add_subtree(ti, ett_dis_ens);
@@ -19297,13 +19297,15 @@ static int dissect_DIS_PARSER_SIGNAL_PDU(tvbuff_t *tvb, packet_info *pinfo, prot
     proto_tree_add_item(tree, hf_dis_tdl_type, tvb, offset, 2, ENC_BIG_ENDIAN);
     offset += 2;
 
-    proto_tree_add_item(tree, hf_dis_sample_rate, tvb, offset, 4, ENC_BIG_ENDIAN);
+    proto_tree_add_item_ret_uint(tree, hf_dis_sample_rate, tvb, offset, 4, ENC_BIG_ENDIAN,
+        &dis_info->info_sample_rate);
     offset += 4;
 
     proto_tree_add_item(tree, hf_dis_data_length, tvb, offset, 2, ENC_BIG_ENDIAN);
     offset += 2;
 
     numSamples = tvb_get_ntohs(tvb, offset);
+    dis_info->info_num_samples = numSamples;
     proto_tree_add_item(tree, hf_dis_num_of_samples, tvb, offset, 2, ENC_BIG_ENDIAN);
     if (numSamples)
         col_append_fstr(pinfo->cinfo, COL_INFO, ", Number of Samples=%u", numSamples);
@@ -20648,8 +20650,8 @@ static int dissect_dis(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void
     proto_tree *dis_payload_tree = NULL;
     proto_item *dis_payload_node = NULL;
 
-    int offset = 0;
-    int offsetBeforePayloadParse = 0;
+    unsigned offset = 0;
+    unsigned offsetBeforePayloadParse = 0;
 
     const char *pduString = 0;
 

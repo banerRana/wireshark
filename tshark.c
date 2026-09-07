@@ -52,7 +52,6 @@
 #include <wsutil/report_message.h>
 #include <app/application_flavor.h>
 #include <wsutil/path_config.h>
-#include <cli_main.h>
 #include <wsutil/version_info.h>
 #include <wiretap/wtap_opttypes.h>
 
@@ -81,11 +80,11 @@
 #include "wsutil/filter_files.h"
 #include "ui/cli/tshark-tap.h"
 #include "ui/cli/tap-exportobject.h"
+#include "ui/cli/cli_common.h"
 #include "ui/tap_export_pdu.h"
 #include "ui/dissect_opts.h"
 #include "ui/failure_message.h"
 #include "ui/capture_opts.h"
-#include "ui/profile.h"
 #if defined(HAVE_LIBSMI)
 #include "epan/oids.h"
 #endif
@@ -144,6 +143,7 @@
 #define LONGOPT_PRINT_TIMERS            LONGOPT_BASE_APPLICATION+9
 #define LONGOPT_GLOBAL_PROFILE          LONGOPT_BASE_APPLICATION+10
 #define LONGOPT_COMPRESS                LONGOPT_BASE_APPLICATION+11
+#define LONGOPT_JSON_COMPACT            LONGOPT_BASE_APPLICATION+12
 
 capture_file cfile;
 
@@ -195,6 +195,7 @@ static char *output_file_name;
 static output_fields_t* output_fields;
 
 static bool no_duplicate_keys;
+static bool json_compact;
 static proto_node_children_grouper_func node_children_grouper = proto_node_group_children_by_unique;
 
 static json_dumper jdumper;
@@ -233,6 +234,8 @@ static void capture_input_error(capture_session *cap_session,
         char *error_msg, char *secondary_error_msg);
 static void capture_input_cfilter_error(capture_session *cap_session,
         unsigned i, const char *error_message);
+static void capture_input_warning(capture_session *cap_session,
+        char *error_msg, char *secondary_error_msg);
 static void capture_input_closed(capture_session *cap_session, char *msg);
 
 static void report_counts(void);
@@ -591,6 +594,8 @@ print_usage(FILE *output)
     fprintf(output, "  --no-duplicate-keys      If -T json is specified, merge duplicate keys in an object\n");
     fprintf(output, "                           into a single key with as value a json array containing all\n");
     fprintf(output, "                           values\n");
+    fprintf(output, "  --json-compact           If -T json is specified, output compact one-line JSON\n");
+    fprintf(output, "                           without indentation (significantly faster)\n");
     fprintf(output, "  --elastic-mapping-filter <protocols> If -G elastic-mapping is specified, put only the\n");
     fprintf(output, "                           specified protocols within the mapping file\n");
     fprintf(output, "  --temp-dir <directory>   write temporary files to this directory\n");
@@ -682,55 +687,6 @@ hexdump_option_help(FILE *output)
     fprintf(output, "\n");
     fprintf(output, "    $ tshark ... --hexdump frames --hexdump delimit ...\n");
     fprintf(output, "\n");
-}
-
-static bool
-profiles_dump(const char* filter)
-{
-    FILE* output;
-    output = stdout;
-
-    GList* fl1 = profile_get_list();
-
-    if ((filter == NULL) || (strcmp(filter, "all") == 0)) {
-
-        while (fl1) {
-            profile_def* profile = (profile_def*)fl1->data;
-            const char* str_type = profile->is_global ? "global" : "personal";
-            if (strcmp(profile->name, DEFAULT_PROFILE) == 0)
-                str_type = "default";
-
-            fprintf(output, "%s\t%s\n", profile->name, str_type);
-
-            fl1 = g_list_next(fl1);
-        }
-
-    } else if (strcmp(filter, "global") == 0) {
-
-        while (fl1) {
-            profile_def* profile = (profile_def*)fl1->data;
-            if (profile->is_global)
-                fprintf(output, "%s\t%s\n", profile->name, filter);
-
-            fl1 = g_list_next(fl1);
-        }
-
-    } else if (strcmp(filter, "personal") == 0) {
-
-        while (fl1) {
-            profile_def* profile = (profile_def*)fl1->data;
-            if (!profile->is_global && (strcmp(profile->name, DEFAULT_PROFILE) != 0))
-                fprintf(output, "%s\t%s\n", profile->name, filter);
-
-            fl1 = g_list_next(fl1);
-        }
-
-    } else {
-        cmdarg_err("Invalid profile filter \"%s\". Valid filters are \"global\", \"personal\", and \"all\".", filter);
-        return false;
-    }
-
-    return true;
 }
 
 static void
@@ -1011,10 +967,10 @@ dump_glossary(const char* glossary, const char* elastic_mapping_filter)
         extcap_dump_all();
     }
     else if (strcmp(glossary, "profiles") == 0) {
-        profiles_dump(NULL);
+        profiles_dump(application_configuration_environment_prefix(), NULL);
     }
     else if (strncmp(glossary, "profiles,", strlen("profiles,")) == 0) {
-        if (!profiles_dump(glossary + strlen("profiles,")))
+        if (!profiles_dump(application_configuration_environment_prefix(), glossary + strlen("profiles,")))
             exit_status = WS_EXIT_INVALID_OPTION;
     }
     else if (strcmp(glossary, "protocols") == 0) {
@@ -1096,7 +1052,7 @@ capture_opts_get_interface_list(int *err, char **err_str)
         /*
          * This isn't a GUI tool, so no need for a callback.
          */
-        cached_if_list = capture_interface_list(global_capture_opts.app_name, err, err_str, NULL);
+        cached_if_list = capture_interface_list(err, err_str, NULL);
     }
     /*
      * Routines expect to free the returned interface list, so return
@@ -1130,6 +1086,7 @@ main(int argc, char *argv[])
         {"print-timers", ws_no_argument, NULL, LONGOPT_PRINT_TIMERS},
         {"global-profile", ws_no_argument, NULL, LONGOPT_GLOBAL_PROFILE},
         {"compress", ws_required_argument, NULL, LONGOPT_COMPRESS},
+        {"json-compact", ws_no_argument, NULL, LONGOPT_JSON_COMPACT},
         {0, 0, 0, 0}
     };
     bool                 arg_error = false;
@@ -1266,9 +1223,6 @@ main(int argc, char *argv[])
     ws_init_version_info("TShark", application_flavor_name_proper(), application_get_vcs_version_info,
             gather_tshark_compile_info, gather_tshark_runtime_info);
 
-    /* Initialize the profile list */
-    profile_init(application_configuration_environment_prefix());
-
     /* Fail sometimes. Useful for testing fuzz scripts. */
     /* if (g_random_int_range(0, 100) < 5) abort(); */
 
@@ -1392,11 +1346,13 @@ main(int argc, char *argv[])
     init_report_failure_message("TShark");
 
 #ifdef HAVE_LIBPCAP
-    capture_opts_init(&global_capture_opts, application_flavor_name_lower(), capture_opts_get_interface_list);
+    capture_opts_init(&global_capture_opts, capture_opts_get_interface_list);
     capture_session_init(&global_capture_session, &cfile,
             capture_input_new_file, capture_input_new_packets,
             capture_input_drops, capture_input_error,
-            capture_input_cfilter_error, capture_input_closed);
+            capture_input_cfilter_error,
+            capture_input_warning, NULL,
+            capture_input_closed);
 #endif
 
     timestamp_set_type(TS_RELATIVE);
@@ -1548,7 +1504,7 @@ main(int argc, char *argv[])
             case 'D':        /* Print a list of capture devices and exit */
 #ifdef HAVE_LIBPCAP
                 exit_status = EXIT_SUCCESS;
-                if_list = capture_interface_list(global_capture_opts.app_name, &err, &err_str,NULL);
+                if_list = capture_interface_list(&err, &err_str,NULL);
                 if (err != 0) {
                     /*
                      * An error occurred when fetching the local
@@ -1996,6 +1952,9 @@ main(int argc, char *argv[])
                     goto clean_exit;
                 }
                 break;
+            case LONGOPT_JSON_COMPACT:
+                json_compact = true;
+                break;
             case '?':        /* Bad flag - print usage message */
             default:
                 /* wslog arguments are okay */
@@ -2041,6 +2000,12 @@ main(int argc, char *argv[])
 
     if (no_duplicate_keys && output_action != WRITE_JSON && output_action != WRITE_JSON_RAW) {
         cmdarg_err("--no-duplicate-keys can only be used with \"-T json\" and \"-T jsonraw\"");
+        exit_status = WS_EXIT_INVALID_OPTION;
+        goto clean_exit;
+    }
+
+    if (json_compact && output_action != WRITE_JSON && output_action != WRITE_JSON_RAW) {
+        cmdarg_err("--json-compact can only be used with \"-T json\" and \"-T jsonraw\"");
         exit_status = WS_EXIT_INVALID_OPTION;
         goto clean_exit;
     }
@@ -2799,7 +2764,7 @@ main(int argc, char *argv[])
                 if_cap_queries = g_list_prepend(if_cap_queries, if_cap_query);
             }
             if_cap_queries = g_list_reverse(if_cap_queries);
-            capability_hash = capture_get_if_list_capabilities(global_capture_opts.app_name, if_cap_queries, &err_str, &err_str_secondary, NULL);
+            capability_hash = capture_get_if_list_capabilities(if_cap_queries, &err_str, &err_str_secondary, NULL);
             g_list_free_full(if_cap_queries, g_free);
             for (i = 0; i < global_capture_opts.ifaces->len; i++) {
                 interface_options *interface_opts;
@@ -3015,8 +2980,10 @@ clean_exit:
     return exit_status;
 }
 
-bool loop_running;
-uint32_t packet_count;
+#ifdef HAVE_LIBPCAP
+static bool loop_running;
+static uint32_t packet_count;
+#endif
 
 static epan_t *
 tshark_epan_new(capture_file *cf)
@@ -3179,6 +3146,23 @@ capture_input_cfilter_error(capture_session *cap_session, unsigned i, const char
                 "That string isn't a valid capture filter (%s).\n"
                 "See the User's Guide for a description of the capture filter syntax.",
                 interface_opts->cfilter, interface_opts->descr, error_message);
+    }
+}
+
+
+/* capture child detected a warning */
+static void
+capture_input_warning(capture_session *cap_session _U_, char *error_msg, char *secondary_warning_msg)
+{
+    /* The primary message might be an empty string, e.g. when the error was
+     * from extcap. (The extcap stderr is gathered when the session closes
+     * and printed in capture_input_closed below.) */
+    if (*error_msg != '\0') {
+        cmdarg_err("%s", error_msg);
+        if (secondary_warning_msg != NULL && *secondary_warning_msg != '\0') {
+            /* We have both primary and secondary messages. */
+            cmdarg_err_cont("%s", secondary_warning_msg);
+        }
     }
 }
 
@@ -4234,6 +4218,9 @@ process_cap_file(capture_file *cf, char *save_file, int out_file_type,
     pass_status_t first_pass_status, second_pass_status;
     int64_t elapsed_start;
 
+    /* Guaranteed by cf_open succeeding. */
+    ws_assert(cf->provider.wth);
+
     if (save_file != NULL) {
         /* Set up to write to the capture file. */
         wtap_dump_params_init_no_idbs(&params, cf->provider.wth);
@@ -4653,7 +4640,7 @@ write_preamble(capture_file *cf)
 
         case WRITE_JSON:
         case WRITE_JSON_RAW:
-            jdumper = write_json_preamble(stdout);
+            jdumper = write_json_preamble(stdout, json_compact);
             return !ferror(stdout);
 
         case WRITE_EK:
@@ -5001,7 +4988,8 @@ print_packet(capture_file *cf, epan_dissect_t *edt)
             }
             if (print_details) {
                 write_fields_proto_tree(output_fields, edt, &cf->cinfo, stdout);
-                printf("\n");
+                if (!output_fields_has_split(output_fields))
+                    printf("\n");
                 return !ferror(stdout);
             }
             break;

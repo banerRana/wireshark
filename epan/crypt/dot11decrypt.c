@@ -256,7 +256,7 @@ Dot11DecryptTDLSDeriveKey(
 extern "C" {
 #endif
 
-const uint8_t broadcast_mac[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+static const uint8_t broadcast_mac[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 
 #define TKIP_GROUP_KEY_LEN 32
 #define CCMP_GROUP_KEY_LEN 16
@@ -433,6 +433,11 @@ Dot11DecryptDecryptKeyData(PDOT11DECRYPT_CONTEXT ctx,
         if (key_bytes_len < 16) {
             return DOT11DECRYPT_RET_UNSUCCESS;
         }
+    }
+
+    if (key_bytes_len > *decrypted_len) {
+        ws_debug("Too large EAPOL key data");
+        return DOT11DECRYPT_RET_UNSUCCESS;
     }
 
     if ((key_bytes_len < GROUP_KEY_MIN_LEN) ||

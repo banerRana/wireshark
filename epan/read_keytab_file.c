@@ -12,12 +12,15 @@
 #include <wireshark.h>
 
 #include "read_keytab_file.h"
+#include "keytab_krb5_ctx.h"
 #include "wmem_scopes.h"
 
 #if defined(HAVE_HEIMDAL_KERBEROS) || defined(HAVE_MIT_KERBEROS)
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(SSIZE_T_DEFINED)
  /* prevent redefinition warnings in krb5's win-mac.h */
+ /* XXX - should we define this in include/ws_posix_compat.h
+  * where we typedef SSIZE_T to ssize_t? */
 #define SSIZE_T_DEFINED
 #endif /* _WIN32 */
 #include <krb5.h>

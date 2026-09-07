@@ -371,9 +371,9 @@ dissect_bson_document(tvbuff_t *tvb, packet_info *pinfo, unsigned offset, proto_
   do {
     /* Read document elements */
     uint8_t e_type;  /* Element type */
-    int str_len = -1;   /* String length */
-    int e_len = -1;     /* Element length */
-    int doc_len = -1;   /* Document length */
+    unsigned str_len;   /* String length */
+    unsigned e_len;     /* Element length */
+    unsigned doc_len;   /* Document length */
 
     e_type = tvb_get_uint8(tvb, offset);
 
@@ -522,7 +522,7 @@ dissect_mongo_reply(tvbuff_t *tvb, packet_info *pinfo, unsigned offset, proto_tr
 {
   proto_item *ti;
   proto_tree *flags_tree;
-  int i, number_returned;
+  uint32_t i, number_returned;
 
   ti = proto_tree_add_item(tree, hf_mongo_reply_flags, tvb, offset, 4, ENC_NA);
   flags_tree = proto_item_add_subtree(ti, ett_mongo_flags);
@@ -538,8 +538,7 @@ dissect_mongo_reply(tvbuff_t *tvb, packet_info *pinfo, unsigned offset, proto_tr
   proto_tree_add_item(tree, hf_mongo_starting_from, tvb, offset, 4, ENC_LITTLE_ENDIAN);
   offset += 4;
 
-  proto_tree_add_item(tree, hf_mongo_number_returned, tvb, offset, 4, ENC_LITTLE_ENDIAN);
-  number_returned = tvb_get_letohl(tvb, offset);
+  proto_tree_add_item_ret_uint(tree, hf_mongo_number_returned, tvb, offset, 4, ENC_LITTLE_ENDIAN, &number_returned);
   offset += 4;
 
   for (i=0; i < number_returned; i++)
@@ -836,7 +835,7 @@ dissect_op_msg_section(tvbuff_t *tvb, packet_info *pinfo, unsigned offset, proto
   section_len = tvb_get_letohil(tvb, offset);
   /* The section length must be strictly smaller than the total message size,
    * both signed int32s. This prevents signed integer overflow. */
-  if (section_len < 0 || section_len == INT32_MAX) {
+  if (section_len < 0 || section_len >= (INT32_MAX-1)) {
     proto_tree_add_expert_format(section_tree, pinfo, &ei_mongo_section_size_bad, tvb, offset, 4, "Bogus Mongo message section size: %i", section_len);
     THROW(ReportedBoundsError);
   }
@@ -1183,7 +1182,7 @@ proto_register_mongo(void)
     },
     { &hf_mongo_number_returned,
       { "Number Returned", "mongo.number_returned",
-      FT_INT32, BASE_DEC, NULL, 0x0,
+      FT_UINT32, BASE_DEC, NULL, 0x0,
       "Number of documents in the reply", HFILL }
     },
     { &hf_mongo_document,

@@ -105,6 +105,7 @@
 #include "peak-trc.h"
 #include "netlog.h"
 #include "procmon.h"
+#include "vector-asc.h"
 
 /*
  * Add an extension, and all compressed versions thereof if requested,
@@ -301,9 +302,9 @@ static const struct open_info open_info_base[] = {
 	{ "3GPP TS 32.423 Trace format",            OPEN_INFO_MAGIC,     nettrace_3gpp_32_423_file_open, NULL, NULL, NULL },
 	/* Gammu DCT3 trace must come before MIME files as it's XML based*/
 	{ "Gammu DCT3 trace",                       OPEN_INFO_MAGIC,     dct3trace_open,           NULL,       NULL, NULL },
-	{ "BLF Logfile",                            OPEN_INFO_MAGIC,     blf_open,                 NULL,     NULL, NULL },
+	{ "Vector Informatik BLF logfile",          OPEN_INFO_MAGIC,     blf_open,                 NULL,     NULL, NULL },
 	{ "AUTOSAR DLT Logfile",                    OPEN_INFO_MAGIC,     autosar_dlt_open,         NULL,     NULL, NULL },
-	{ "TTL Logfile",                            OPEN_INFO_MAGIC,     ttl_open,                 NULL,     NULL, NULL },
+	{ "TTTech Computertechnik TTL logfile",     OPEN_INFO_MAGIC,     ttl_open,                 NULL,     NULL, NULL },
 	{ "RTPDump files",                          OPEN_INFO_MAGIC,     rtpdump_open,             NULL, NULL, NULL },
 	{ "MIME Files Format",                      OPEN_INFO_MAGIC,     mime_file_open,           NULL,       NULL, NULL },
 	{ "Micropross mplog",                       OPEN_INFO_MAGIC,     mplog_open,               NULL,   NULL, NULL },
@@ -357,6 +358,7 @@ static const struct open_info open_info_base[] = {
 	{ "Candump log",                            OPEN_INFO_HEURISTIC, candump_open,             NULL,       NULL, NULL },
 	{ "Busmaster log",                          OPEN_INFO_HEURISTIC, busmaster_open,           NULL,       NULL, NULL },
 	{ "CSS Electronics CLX000 CAN log",         OPEN_INFO_MAGIC,     cllog_open,               "txt",      NULL, NULL },
+	{ "Vector ASC CAN log",                     OPEN_INFO_HEURISTIC, vector_asc_open,          "asc",      NULL, NULL },
 	{ "Ericsson eNode-B raw log",               OPEN_INFO_MAGIC,     eri_enb_log_open,         NULL,       NULL, NULL },
 	{ "Systemd Journal",                        OPEN_INFO_HEURISTIC, systemd_journal_open,     "log;jnl;journal",      NULL, NULL },
 	{ "PEAK CAN TRC log",                       OPEN_INFO_HEURISTIC, peak_trc_open,            "trc",      NULL, NULL },
@@ -524,7 +526,7 @@ wtap_has_open_info(const char *name)
 	unsigned i;
 
 	if (!name) {
-		ws_error("No name given to wtap_has_open_info!");
+		ws_error("No name given to wtap_has_open_info.");
 		return false;
 	}
 
@@ -2626,14 +2628,14 @@ wtap_dump_file_type_subtype(const wtap_dumper *wdh)
 	return wdh->file_type_subtype;
 }
 
-int64_t
+uint64_t
 wtap_get_bytes_dumped(const wtap_dumper *wdh)
 {
 	return wdh->bytes_dumped;
 }
 
 void
-wtap_set_bytes_dumped(wtap_dumper *wdh, int64_t bytes_dumped)
+wtap_set_bytes_dumped(wtap_dumper *wdh, uint64_t bytes_dumped)
 {
 	wdh->bytes_dumped = bytes_dumped;
 }

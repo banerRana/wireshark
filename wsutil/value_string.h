@@ -533,19 +533,48 @@ WS_DLL_PUBLIC
 val64_string_ext *
 val64_string_ext_new(wmem_allocator_t* scope, const val64_string *vs, unsigned vs_tot_num_entries, const char *vs_name);
 
+/**
+ * @brief Frees a val64_string_ext structure.
+ *
+ * @param vse Pointer to the val64_string_ext structure to be freed.
+ */
 WS_DLL_PUBLIC
 void
 val64_string_ext_free(val64_string_ext *vse);
 
+/**
+ * @brief Convert a 64-bit unsigned integer to a string using an extended value string structure.
+ *
+ * @param scope Memory allocator scope for the returned string.
+ * @param val The 64-bit unsigned integer to convert.
+ * @param vse Pointer to the extended value string structure containing the mapping.
+ * @param fmt Format string used if `val` is not found in `vse`.
+ * @return A newly allocated string representing the value, or a formatted string if not found.
+ */
 WS_DLL_PUBLIC
 char *
 val64_to_str_ext_wmem(wmem_allocator_t *scope, const uint64_t val, val64_string_ext *vse, const char *fmt)
 G_GNUC_PRINTF(4, 0);
 
+/**
+ * @brief Convert a 64-bit unsigned integer to a string using an extended value string structure.
+ *
+ * @param val The 64-bit unsigned integer to convert.
+ * @param vs The extended value string structure containing the mapping.
+ * @param unknown_str The string to return if the value is not found in the mapping.
+ * @return const char* The converted string or the unknown string if not found.
+ */
 WS_DLL_PUBLIC
 const char *
 val64_to_str_ext_const(const uint64_t val, val64_string_ext *vs, const char *unknown_str);
 
+/**
+ * @brief Convert a 64-bit value to its corresponding string index and pointer.
+ *
+ * @param val The 64-bit value to convert.
+ * @param vse Pointer to the value_string_ext structure containing the mapping.
+ * @return The corresponding string pointer, or NULL if not found.
+ */
 WS_DLL_PUBLIC
 const char *
 try_val64_to_str_ext(const uint64_t val, val64_string_ext *vse);
@@ -564,9 +593,12 @@ try_val64_to_str_idx_ext(const uint64_t val, val64_string_ext *vse, int *idx);
 
 /* STRING TO STRING MATCHING */
 
+/**
+ * @brief Maps a string key to a string value, used for table-driven string-to-string lookups.
+ */
 typedef struct _string_string {
-    const char *value;
-    const char *strptr;
+    const char *value;  /**< The string key to match against during lookup. */
+    const char *strptr; /**< The human-readable string returned when @ref value is matched. */
 } string_string;
 
 /**
@@ -608,17 +640,36 @@ try_str_to_str_idx(const char *val, const string_string *vs, int *idx);
 
 /* RANGE TO STRING MATCHING */
 
+/**
+ * @brief Maps an inclusive numeric range to a string value, used for table-driven range-to-string lookups.
+ */
 typedef struct _range_string {
-    uint64_t     value_min;
-    uint64_t     value_max;
-    const char *strptr;
+    uint64_t    value_min; /**< Inclusive lower bound of the numeric range for this entry. */
+    uint64_t    value_max; /**< Inclusive upper bound of the numeric range for this entry. */
+    const char *strptr;    /**< Human-readable string returned when a queried value falls within [@ref value_min, @ref value_max]. */
 } range_string;
 
+/**
+ * @brief Convert a 32-bit unsigned integer to its corresponding string representation based on a range string.
+ *
+ * @param scope Memory allocator for the returned string.
+ * @param val The 32-bit unsigned integer value to convert.
+ * @param rs Pointer to an array of range_string structures defining the mapping from values to strings.
+ * @param fmt Format string to use if no matching range is found. Must not be NULL.
+ * @return const char* The corresponding string representation, or a default string if no match is found and fmt is provided.
+ */
 WS_DLL_PUBLIC
 const char *
 rval_to_str_wmem(wmem_allocator_t* scope, const uint32_t val, const range_string *rs, const char *fmt)
 G_GNUC_PRINTF(4, 0);
 
+/**
+ * @brief Convert a 32-bit unsigned integer to its corresponding string representation based on a range string.
+ *
+ * @param val The 32-bit unsigned integer value to convert.
+ * @param rs Pointer to the range_string structure containing the mapping of values to strings.
+ * @return const char* The corresponding string representation, or NULL if not found.
+ */
 WS_DLL_PUBLIC
 const char *
 rval_to_str_const(const uint32_t val, const range_string *rs, const char *unknown_str);
@@ -675,9 +726,12 @@ try_rval64_to_str_idx(const uint64_t val, const range_string *rs, int *idx);
 
 /* TIME TO STRING MATCHING */
 
+/**
+ * @brief Maps a timestamp key to a string value, used for table-driven time-to-string lookups.
+ */
 typedef struct _time_value_string {
-    nstime_t     value;
-    const char *strptr;
+    nstime_t    value;  /**< The timestamp key to match against during lookup. */
+    const char *strptr; /**< Human-readable string returned when @ref value is matched. */
 } time_value_string;
 
 /**
@@ -693,10 +747,13 @@ try_time_val_to_str(const nstime_t *val, const time_value_string *vs);
 
 /* BYTES TO STRING MATCHING */
 
+/**
+ * @brief Maps a byte sequence key to a string value, used for table-driven binary-pattern-to-string lookups.
+ */
 typedef struct _bytes_string {
-  const uint8_t *value;
-  const size_t  value_length;
-  const char   *strptr;
+    const uint8_t *value;        /**< Pointer to the raw byte sequence to match against during lookup. */
+    const size_t   value_length; /**< Length in bytes of the byte sequence pointed to by @ref value. */
+    const char    *strptr;       /**< Human-readable string returned when @ref value matches the queried byte sequence. */
 } bytes_string;
 
 /**
@@ -717,6 +774,18 @@ const char *
 bytesval_to_str_wmem(wmem_allocator_t* scope, const uint8_t *val, const size_t val_len, const bytes_string *bs, const char *fmt)
 G_GNUC_PRINTF(5, 0);
 
+/**
+ * @brief Convert a byte prefix to a string using a value_string array.
+ *
+ * This function attempts to find a prefix match of any prefix from the bytes_string array
+ * against the haystack and returns the corresponding string if found. If no match is found,
+ * it uses a format string to create a new string.
+ *
+ * @param val Pointer to the byte array to be matched.
+ * @param val_len Length of the byte array.
+ * @param bs Pointer to the bytes_string array containing prefix-value pairs.
+ * @return const char* The corresponding string if a match is found, otherwise NULL.
+ */
 WS_DLL_PUBLIC
 const char *
 try_bytesval_to_str(const uint8_t *val, const size_t val_len, const bytes_string *bs);

@@ -13,8 +13,6 @@
 
 #include <config.h>
 
-#include <wireshark.h>
-
 #include <errno.h>
 
 #include <wsutil/file_util.h>
@@ -54,7 +52,7 @@ ws_compression_type
 ws_name_to_compression_type(const char *name)
 {
     for (const struct compression_type *p = compression_types;
-	 p->type != WS_FILE_UNKNOWN_COMPRESSION; p++) {
+         p->type != WS_FILE_UNKNOWN_COMPRESSION; p++) {
         if (!g_strcmp0(name, p->name))
             return p->type;
     }
@@ -122,7 +120,7 @@ ws_get_all_compression_type_extensions_list(void)
 {
     GSList *extensions;
 
-    extensions = NULL;	/* empty list, to start with */
+    extensions = NULL; /* empty list, to start with */
 
     for (const struct compression_type *p = compression_types;
          p->type != WS_FILE_UNCOMPRESSED; p++)
@@ -136,7 +134,7 @@ ws_get_all_output_compression_type_names_list(void)
 {
     GSList *names;
 
-    names = NULL;	/* empty list, to start with */
+    names = NULL; /* empty list, to start with */
 
     for (const struct compression_type *p = compression_types;
          p->type != WS_FILE_UNCOMPRESSED; p++) {
@@ -246,8 +244,8 @@ ws_cwstream_open(const char *filename, ws_compression_type ctype, int *err)
     void* fh = writecap_file_open(pfile, filename);
     if (fh == NULL) {
         *err = errno;
-	g_free(pfile);
-	return NULL;
+        g_free(pfile);
+        return NULL;
     }
 
     pfile->fh = fh;
@@ -419,6 +417,7 @@ ws_cwstream_close(ws_cwstream* pfile, int *errp)
             if (fclose(pfile->fh) == EOF) {
                 err = errno;
             }
+            break;
     }
 
     g_free(pfile->io_buffer);
@@ -427,6 +426,29 @@ ws_cwstream_close(ws_cwstream* pfile, int *errp)
         *errp = err;
     }
     return err == 0;
+}
+
+void
+ws_cwstream_close_after_error(ws_cwstream* pfile)
+{
+    switch (pfile->ctype) {
+#if defined (HAVE_ZLIB) || defined (HAVE_ZLIBNG)
+        case WS_FILE_GZIP_COMPRESSED:
+            gzwfile_close_after_error(pfile->fh);
+            break;
+#endif
+#ifdef HAVE_LZ4FRAME_H
+        case WS_FILE_LZ4_COMPRESSED:
+            lz4wfile_close_after_error(pfile->fh);
+            break;
+#endif /* HAVE_LZ4FRAME_H */
+        default:
+            (void)fclose(pfile->fh);
+            break;
+    }
+
+    g_free(pfile->io_buffer);
+    g_free(pfile);
 }
 
 #ifdef USE_ZLIB_OR_ZLIBNG
@@ -591,7 +613,7 @@ gz_comp(GZWFILE_T state, int flush)
         ret = ZLIB_PREFIX(deflate)(strm, flush);
         if (ret == Z_STREAM_ERROR) {
             /* This "shouldn't happen". */
-            state->err = FILE_ERR_INTERNAL;
+            state->err = FILE_ERR_CANT_COMPRESS;
             state->err_info = "Z_STREAM_ERROR from deflate()";
             return -1;
         }
@@ -713,6 +735,18 @@ gzwfile_close(GZWFILE_T state)
     return ret;
 }
 
+/* Immediately close the file after an error has occurred writing or
+   flushing; do nothing other than freeing memory and closing file
+   descriptors. Returns no error. */
+void
+gzwfile_close_after_error(GZWFILE_T state)
+{
+    g_free(state->out);
+    g_free(state->in);
+    (void)ws_close(state->fd);
+    g_free(state);
+}
+
 int
 gzwfile_geterr(GZWFILE_T state)
 {
@@ -773,12 +807,12 @@ lz4wfile_fdopen(int fd)
 
     memset(&state->lz4_prefs, 0, sizeof(LZ4F_preferences_t));
     /* Use the same prefs as the lz4 command line utility defaults. */
-    state->lz4_prefs.frameInfo.blockMode = LZ4F_blockIndependent; /* Allows fast seek */
-    /* We could use LZ4F_blockLinked but start a new frame every so often
-     * in order to allow fast seek. (Or implement fast seek for linked
-     * blocks via dictionary loading.) Linked blocks have better compression
+    state->lz4_prefs.frameInfo.blockMode = LZ4F_blockIndependent;
+    /* We could use LZ4F_blockLinked. Linked blocks have better compression
      * when blocks are small, as happens when flushing during live capture.
-     */
+     * It's not as widely supported, though; libwiretap supports reading
+     * linked blocks but not with fast seek until 4.6.0, and then only if
+     * the version of LZ4 is 1.10.0 or later. */
     state->lz4_prefs.frameInfo.contentChecksumFlag = 1;
     state->lz4_prefs.frameInfo.blockSizeID = LZ4F_max4MB;
     /* XXX - What should we set state->lz4_prefs.compressionLevel to?
@@ -799,7 +833,7 @@ lz4wfile_fdopen(int fd)
      */
 
     /* initialize stream */
-    state->err = 0;              /* clear error */
+    state->err = 0;                 /* clear error */
     state->err_info = NULL;         /* clear additional error information */
     state->pos = 0;                 /* no uncompressed data yet */
     state->pos_out = 0;
@@ -840,7 +874,7 @@ lz4_init(LZ4WFILE_T state)
     /* create Compression context */
     ret = LZ4F_createCompressionContext(&state->lz4_cctx, LZ4F_VERSION);
     if (LZ4F_isError(ret)) {
-        state->err = FILE_ERR_CANT_WRITE; // XXX - FILE_ERR_COMPRESS?
+        state->err = FILE_ERR_CANT_COMPRESS;
         state->err_info = LZ4F_getErrorName(ret);
         return -1;
     }
@@ -851,12 +885,25 @@ lz4_init(LZ4WFILE_T state)
         g_free(state->out);
         LZ4F_freeCompressionContext(state->lz4_cctx);
         state->err = ENOMEM;
+        state->err_info = NULL;
         return -1;
     }
 
     ret = LZ4F_compressBegin(state->lz4_cctx, state->out, state->want_out, &state->lz4_prefs);
     if (LZ4F_isError(ret)) {
-        state->err = FILE_ERR_CANT_WRITE; // XXX - FILE_ERR_COMPRESS?
+        /*
+         * Most of these errors appear to be an error by the caller or the
+         * library itself. When writing, it's not as if the file is bad,
+         * so presumably the error is either "ran out of memory", a bug
+         * in our code, or a bug in the library.
+         *
+         * Unfortunately, the codes are opaque outside the library - they
+         * don't, for example, define LZ4F_ERROR_allocation_failed -
+         * so if we were to try to determine what the underlying problem
+         * is, in order to report them differently, we'd have to do a
+         * string comparison on the results of LZ4F_getErrorName()..
+         */
+        state->err = FILE_ERR_CANT_COMPRESS;
         state->err_info = LZ4F_getErrorName(ret);
         return -1;
     }
@@ -896,7 +943,19 @@ lz4wfile_write(LZ4WFILE_T state, const void *buf, size_t len)
         size_t bytesWritten = LZ4F_compressUpdate(state->lz4_cctx, state->out, state->size_out,
             buf, to_write, NULL);
         if (LZ4F_isError(bytesWritten)) {
-            state->err = FILE_ERR_CANT_WRITE; // XXX - FILE_ERR_COMPRESS?
+            /*
+             * Most of these errors appear to be an error by the caller or the
+             * library itself. When writing, it's not as if the file is bad,
+             * so presumably the error is either "ran out of memory", a bug
+             * in our code, or a bug in the library.
+             *
+             * Unfortunately, the codes are opaque outside the library - they
+             * don't, for example, define LZ4F_ERROR_allocation_failed -
+             * so if we were to try to determine what the underlying problem
+             * is, in order to report them differently, we'd have to do a
+             * string comparison on the results of LZ4F_getErrorName()..
+             */
+            state->err = FILE_ERR_CANT_COMPRESS;
             state->err_info = LZ4F_getErrorName(bytesWritten);
             return 0;
         }
@@ -921,10 +980,15 @@ lz4wfile_flush(LZ4WFILE_T state)
     if (state->err != 0)
         return -1;
 
+    /* If not initialized yet, nothing to flush. */
+    if (state->size_out == 0)
+        return 0;
+
     bytesWritten = LZ4F_flush(state->lz4_cctx, state->out, state->size_out, NULL);
     if (LZ4F_isError(bytesWritten)) {
         // Should never happen if size_out >= LZ4F_compressBound(0, prefsPtr)
-        state->err = FILE_ERR_INTERNAL;
+        state->err = FILE_ERR_CANT_COMPRESS;
+        state->err_info = LZ4F_getErrorName(bytesWritten);
         return -1;
     }
     if (!lz4_write_out(state, bytesWritten)) {
@@ -940,21 +1004,43 @@ lz4wfile_close(LZ4WFILE_T state)
 {
     int ret = 0;
 
-    /* flush, free memory, and close file */
-    size_t bytesWritten = LZ4F_compressEnd(state->lz4_cctx, state->out, state->size_out, NULL);
-    if (LZ4F_isError(bytesWritten)) {
-        // Should never happen if size_out >= LZ4F_compressBound(0, prefsPtr)
-        ret = FILE_ERR_INTERNAL;
+    /* If not initialized yet, nothing to flush. */
+    if (state->size_out != 0) {
+        /* flush and free memory */
+        size_t bytesWritten = LZ4F_compressEnd(state->lz4_cctx, state->out, state->size_out, NULL);
+        if (LZ4F_isError(bytesWritten)) {
+            // Should never happen if size_out >= LZ4F_compressBound(0, prefsPtr)
+            ret = FILE_ERR_CANT_COMPRESS;
+        }
+        if (!lz4_write_out(state, bytesWritten) && ret == 0) {
+            ret = state->err;
+        }
+        g_free(state->out);
+        LZ4F_freeCompressionContext(state->lz4_cctx);
     }
-    if (!lz4_write_out(state, bytesWritten)) {
-        ret = state->err;
-    }
-    g_free(state->out);
-    LZ4F_freeCompressionContext(state->lz4_cctx);
+
+    /* Close file */
     if (ws_close(state->fd) == -1 && ret == 0)
         ret = errno;
     g_free(state);
     return ret;
+}
+
+/* Immediately close the file after an error has occurred writing or
+   flushing; do nothing other than freeing memory and closing file
+   descriptors. Returns no error. */
+void
+lz4wfile_close_after_error(LZ4WFILE_T state)
+{
+    /* If not initialized yet, nothing to flush. */
+    if (state->size_out != 0) {
+        g_free(state->out);
+        LZ4F_freeCompressionContext(state->lz4_cctx);
+    }
+
+    /* Close file */
+    (void)ws_close(state->fd);
+    g_free(state);
 }
 
 int

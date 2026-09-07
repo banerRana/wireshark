@@ -31,6 +31,7 @@
 #endif
 
 #include <ui/recent.h>
+#include <ui/qt/utils/theme_manager.h>
 #include <app/application_flavor.h>
 
 #include <algorithm>
@@ -73,7 +74,7 @@ static constexpr int kDescLineSpacing      = 3;
 
 /* Height of the body text area for normal and seasonal slides respectively. */
 static constexpr int kBodyHeight           = 48;
-static constexpr int kBodyHeightSeasonal   = 64;
+static constexpr int kBodyHeightSeasonal   = 108;
 
 /* Vertical gap below the body text area. */
 static constexpr int kBodyBottomSpacing    = 4;
@@ -93,6 +94,7 @@ InfoBannerWidget::InfoBannerWidget(QWidget *parent) :
     , hovered_(false)
     , auto_advance_timer_(new QTimer(this))
     , auto_advance_ms_(kDefaultAutoAdvanceMs)
+    , slides_test_(false)
     , default_color_start_(QColor(0x33, 0x33, 0x33))
     , default_color_end_(QColor(0x22, 0x22, 0x22))
 {
@@ -102,7 +104,6 @@ InfoBannerWidget::InfoBannerWidget(QWidget *parent) :
     slide_type_visible_[BannerSponsorship] = true;
     slide_type_visible_[BannerTips] = true;
     setupSlides();
-    applySlideFilter();
 
     setMouseTracking(true);
     setFrameShape(QFrame::NoFrame);
@@ -111,18 +112,14 @@ InfoBannerWidget::InfoBannerWidget(QWidget *parent) :
     setMaximumHeight(kCardHeight);
 
     connect(auto_advance_timer_, &QTimer::timeout, this, &InfoBannerWidget::advanceSlide);
+    connect(ThemeManager::instance(), &ThemeManager::themeChanged, this,
+            [this]() { update(); });
     auto_advance_timer_->stop();
-}
-
-void InfoBannerWidget::startRotation()
-{
-    if (!auto_advance_timer_->isActive())
-        auto_advance_timer_->start(auto_advance_ms_);
 }
 
 BannerSlideType InfoBannerWidget::typeFromString(const QString &type_str)
 {
-    /* We could do this automatically using QMetaEnum if needed, but for just three fields
+    /* We could do this automatically using QMetaEnum if needed, but for just four fields
        that feels like overkill. */
 
     if (type_str == QLatin1String("events"))
@@ -378,9 +375,9 @@ void InfoBannerWidget::loadSlidesFromResource(const QString &resource_path,
         }
     }
 
-    QString flavor = application_flavor_is_wireshark() ? QStringLiteral("wireshark") : QStringLiteral("stratoshark");
+    QString flavor(application_flavor_name_lower());
 
-        // Parse slides
+    // Parse slides
     QJsonArray slides_array = root.value(QStringLiteral("slides")).toArray();
     for (const QJsonValue &val : slides_array) {
         QJsonObject obj = val.toObject();
@@ -445,12 +442,29 @@ void InfoBannerWidget::loadSlidesFromResource(const QString &resource_path,
     }
 }
 
+void InfoBannerWidget::setSlideDeckFreeze(bool freeze)
+{
+    if (!freeze)
+        applySlideFilter();
+}
+
 void InfoBannerWidget::setSlideTypeVisible(BannerSlideType type, bool visible)
 {
     if (type != BannerSeasonal) {
         slide_type_visible_[type] = visible;
     }
-    applySlideFilter();
+}
+
+void InfoBannerWidget::setAutoAdvance(bool advance)
+{
+    if (!slides_test_) {
+        if (advance) {
+            auto_advance_timer_->start(auto_advance_ms_);
+        } else {
+            auto_advance_timer_->stop();
+            advanceRandomSlide();
+        }
+    }
 }
 
 void InfoBannerWidget::setAutoAdvanceInterval(unsigned seconds)
@@ -459,8 +473,16 @@ void InfoBannerWidget::setAutoAdvanceInterval(unsigned seconds)
     if (ms < 1000)
         ms = 1000;
     auto_advance_ms_ = ms;
-    if (auto_advance_timer_->isActive())
+    if (auto_advance_timer_->isActive()) {
         auto_advance_timer_->start(auto_advance_ms_);
+    } else {
+        auto_advance_timer_->stop();
+    }
+}
+
+void InfoBannerWidget::setSlidesTest(bool test)
+{
+    slides_test_ = test;
 }
 
 bool InfoBannerWidget::hasVisibleSlides() const
@@ -510,10 +532,12 @@ void InfoBannerWidget::buildSlideSequence()
         // Date-filter
         QList<BannerSlide> active;
         for (const BannerSlide &slide : type_slides) {
-            if (slide.date_from.isValid() && today < slide.date_from)
-                continue;
-            if (slide.date_until.isValid() && today > slide.date_until)
-                continue;
+            if (!slides_test_) {
+                if (slide.date_from.isValid() && today < slide.date_from)
+                    continue;
+                if (slide.date_until.isValid() && today > slide.date_until)
+                    continue;
+            }
             active.append(slide);
         }
 
@@ -521,7 +545,7 @@ void InfoBannerWidget::buildSlideSequence()
             continue;
 
         int maxdisplay = type_config_.value(type).maxdisplay;
-        if (maxdisplay <= 0 || maxdisplay >= active.size()) {
+        if ((maxdisplay <= 0 || maxdisplay >= active.size()) || (slides_test_)) {
             // Show all slides of this type
             slides_.append(active);
         } else {
@@ -555,6 +579,18 @@ void InfoBannerWidget::advanceSlide()
     }
     updateAccessibility();
     update();
+}
+
+void InfoBannerWidget::advanceRandomSlide()
+{
+    if (slides_.isEmpty()) return;
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, static_cast<int>(slides_.size()));
+    current_slide_ = dis(gen);
+
+    advanceSlide();
 }
 
 bool InfoBannerWidget::event(QEvent *event)
@@ -965,7 +1001,8 @@ void InfoBannerWidget::mousePressEvent(QMouseEvent *event)
     int dot_index = dotHitTest(event->pos());
     if (dot_index >= 0 && dot_index != current_slide_) {
         current_slide_ = dot_index;
-        auto_advance_timer_->start(auto_advance_ms_);
+        if (auto_advance_timer_->isActive())
+            auto_advance_timer_->start(auto_advance_ms_);
         updateAccessibility();
         update();
         return;

@@ -98,7 +98,7 @@
 
 #define ENAME_HOSTS     "hosts"
 #define ENAME_SUBNETS   "subnets"
-#define ENAME_SUBNETS_V6 "subnetIpv6"
+#define ENAME_SUBNETS_V6 "subnetsipv6"
 #define ENAME_ETHERS    "ethers"
 #define ENAME_IPXNETS   "ipxnets"
 #define ENAME_MANUF     "manuf"
@@ -357,19 +357,18 @@ static bool resolve_synchronously;
  *  GUI code to change them.
  */
 
-char *g_ethers_path;     /* global ethers file     */
-char *g_pethers_path;     /* personal ethers file   */
-char *g_wka_path;     /* global well-known-addresses file */
-char *g_manuf_path;     /* global manuf file      */
-char *g_pmanuf_path;     /* personal manuf file      */
-char *g_ipxnets_path;     /* global ipxnets file    */
-char *g_pipxnets_path;     /* personal ipxnets file  */
-char *g_services_path;     /* global services file   */
-char *g_pservices_path;     /* personal services file */
-char *g_pvlan_path;     /* personal vlans file    */
-char *g_ss7pcs_path;     /* personal ss7pcs file   */
-char *g_enterprises_path;   /* global enterprises file   */
-char *g_penterprises_path;  /* personal enterprises file */
+static char *g_ethers_path;     /* global ethers file     */
+static char *g_pethers_path;     /* personal ethers file   */
+static char *g_wka_path;     /* global well-known-addresses file */
+static char *g_manuf_path;     /* global manuf file      */
+static char *g_pmanuf_path;     /* personal manuf file      */
+static char *g_ipxnets_path;     /* global ipxnets file    */
+static char *g_pipxnets_path;     /* personal ipxnets file  */
+static char *g_services_path;     /* global services file   */
+static char *g_pservices_path;     /* personal services file */
+static char *g_pvlan_path;     /* personal vlans file    */
+static char *g_enterprises_path;   /* global enterprises file   */
+static char *g_penterprises_path;  /* personal enterprises file */
                                     /* first resolving call   */
 
 /*
@@ -421,7 +420,7 @@ static  wmem_list_t *async_dns_queue_head;
 static  GMutex      async_dns_queue_mtx;
 
 //UAT for providing a list of DNS servers to C-ARES for name resolution
-bool use_custom_dns_server_list;
+static bool use_custom_dns_server_list;
 struct dns_server_data {
     char *ipaddr;
     uint32_t udp_port;
@@ -1222,10 +1221,21 @@ fill_dummy_ip4(const unsigned addr, hashipv4_t* volatile tp)
             }
         }
 
-        /* There are more efficient ways to do this, but this is safe if we
-         * trust snprintf and MAXDNSNAMELEN
+        /* XXX - the subnet entry name could be up to MAXDNSNAMELEN, and
+         * buffer is WS_INET_ADDRSTRLEN chars, so the total length of
+         * this string could be up to MAXDNSNAMELEN+WS_INET_ADDRSTRLEN,
+         * which won't fit in the name field of a hashipv4_t, which is only
+         * MAXDNSNAMELEN chars.
+         *
+         * For now, we do it this way, to suppress compiler warnings.
+         * g_strlcpy() returns the length of the string being copied, which
+         * should be < MAXDNSNAMELEN as it does not include the trailing NUL,
+         * but let's be cautious.
          */
-        snprintf(tp->name, MAXDNSNAMELEN, "%s%s", subnet_entry.name, paddr);
+        size_t subnet_entry_name_len;
+        subnet_entry_name_len = g_strlcpy(tp->name, subnet_entry.name, MAXDNSNAMELEN);
+        if (subnet_entry_name_len < MAXDNSNAMELEN)
+                g_strlcpy(tp->name + subnet_entry_name_len, paddr, MAXDNSNAMELEN - subnet_entry_name_len);
 
         /* Evaluate the subnet in CIDR notation
          * Reuse buffers built above
@@ -1817,6 +1827,7 @@ manuf_hash_new_entry(const uint8_t *addr, const char* name, const char* longname
     unsigned manuf_key;
     hashmanuf_t *manuf_value;
     char *endp;
+    size_t attempted_size;
 
     /* manuf needs only the 3 most significant octets of the ethernet address */
     manuf_key = (addr[0] << 16) + (addr[1] << 8) + addr[2];
@@ -1827,7 +1838,10 @@ manuf_hash_new_entry(const uint8_t *addr, const char* name, const char* longname
         (void) g_strlcpy(manuf_value->resolved_name, name, MAXNAMELEN);
         manuf_value->flags = NAME_RESOLVED;
         if (longname != NULL) {
-            (void) g_strlcpy(manuf_value->resolved_longname, longname, MAXNAMELEN);
+            attempted_size = g_strlcpy(manuf_value->resolved_longname, longname, MAXNAMELEN);
+            if (attempted_size >= MAXNAMELEN) {
+                ws_utf8_truncate(manuf_value->resolved_longname, MAXNAMELEN - 1);
+            }
         }
         else {
             (void) g_strlcpy(manuf_value->resolved_longname, name, MAXNAMELEN);
@@ -3676,7 +3690,7 @@ addr_resolve_pref_init(module_t *nameres)
             "Resolve network (IP) addresses",
             "Resolve IPv4, IPv6, and IPX addresses into host names."
             " The next set of check boxes determines how name resolution should be performed."
-            " If no other options are checked name resolution is made from Wireshark's host file"
+            " If no other options are checked name resolution is made from Wireshark's host, subnets or subnetsipv6 file"
             " and capture file name resolution blocks.",
             &gbl_resolv_flags.network_name);
 
@@ -4029,7 +4043,21 @@ host_name_lookup_init(const char* app_env_var_prefix)
     }
     g_free(hostspath);
     /*
-     * Load the user's hosts file no matter what, if they have one.
+     * Load the base personal hosts file, if we have one.  This is in the
+     * root of the personal configuration directory (e.g. %APPDATA%\Wireshark\hosts
+     * on Windows), not in a profile subdirectory, so it survives upgrades and
+     * applies across all profiles.  It is loaded after the global file so that
+     * personal entries take precedence over global ones.
+     */
+    hostspath = get_persconffile_path(ENAME_HOSTS, false, app_env_var_prefix);
+    if (!read_hosts_file(hostspath, true) && errno != ENOENT) {
+        report_open_failure(hostspath, errno, false);
+    }
+    g_free(hostspath);
+    /*
+     * Load the profile hosts file, if we have one.  This is loaded last so
+     * that profile entries take precedence over both the global and base
+     * personal hosts files.
      */
     hostspath = get_persconffile_path(ENAME_HOSTS, true, app_env_var_prefix);
     if (!read_hosts_file(hostspath, true) && errno != ENOENT) {

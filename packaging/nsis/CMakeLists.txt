@@ -167,13 +167,13 @@ if (BUILD_wireshark)
 	elseif(USE_MSYSTEM)
 		include(${CMAKE_CURRENT_SOURCE_DIR}/InstallMSYS2.cmake)
 		foreach(_dll ${MINGW_DLLS})
-			file(TO_NATIVE_PATH ${_dll} _path)
+			file(TO_NATIVE_PATH "${_dll}" _path)
 			set(_all_manifest_contents "${_all_manifest_contents}File \"${_path}\"\n")
 		endforeach()
 	else()
 		include(${CMAKE_CURRENT_SOURCE_DIR}/InstallMinGW.cmake)
 		foreach(_dll ${MINGW_DLLS})
-			file(TO_NATIVE_PATH ${_dll} _path)
+			file(TO_NATIVE_PATH "${_dll}" _path)
 			set(_all_manifest_contents "${_all_manifest_contents}File \"${_path}\"\n")
 		endforeach()
 	endif()
@@ -241,6 +241,9 @@ if (BUILD_stratoshark)
 			${SPEEXDSP_DLL}
 			# Needed for mmdbresolve
 			${MAXMINDDB_DLL}
+			# Transitive dependencies for Falco plugins. Rust plugins will at least
+			# need libunwind.
+			${FALCO_PLUGIN_DLLS}
 		)
 		set(_all_manifest_contents "${_all_manifest_contents}File \"\${STAGING_DIR}\\${_dll}\"\n")
 	endforeach()

@@ -47,9 +47,9 @@ void proto_reg_handoff_fp(void);
 
 /* Initialize the protocol and registered fields. */
 
-int proto_fp;
-extern int proto_umts_mac;
-extern int proto_umts_rlc;
+static int proto_fp;
+static int proto_umts_mac;
+static int proto_umts_rlc;
 
 static int hf_fp_release;
 static int hf_fp_release_version;
@@ -264,10 +264,10 @@ struct edch_t1_subframe_info
 /* E-DCH (T2) channel header information */
 struct edch_t2_subframe_info
 {
-    uint8_t subframe_number;
-    uint8_t number_of_mac_is_pdus;
-    uint8_t number_of_mac_is_sdus[16];
-    uint8_t mac_is_lchid[16][16];
+    uint8_t  subframe_number;
+    uint8_t  number_of_mac_is_pdus;
+    uint8_t  number_of_mac_is_sdus[16];
+    uint8_t  mac_is_lchid[16][16];
     uint16_t mac_is_length[16][16];
 };
 
@@ -708,8 +708,8 @@ dissect_tb_data(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     proto_item_set_text(tree_ti, "TB data for %u chans", p_fp_info->num_chans);
     data_tree = proto_item_add_subtree(tree_ti, ett_fp_data);
 
-    if (p_fp_info->num_chans >= MAX_MAC_FRAMES) {
-        expert_add_info_format(pinfo, data_tree, &ei_fp_invalid_frame_count, "Invalid Number of channels (max is %u)", MAX_MAC_FRAMES);
+    if (p_fp_info->num_chans >= MAX_FP_CHANS) {
+        expert_add_info_format(pinfo, data_tree, &ei_fp_invalid_frame_count, "Invalid Number of channels (max is %u)", MAX_FP_CHANS);
         return offset;
     }
 
@@ -3036,12 +3036,17 @@ dissect_e_dch_t2_or_common_channel_info(tvbuff_t *tvb, packet_info *pinfo, proto
                                                                  ett_fp_edch_macis_descriptors);
 
         /* Find a sequence of descriptors for each MAC-is PDU in this subframe */
-        for (pdu_no=0; pdu_no < subframes[n].number_of_mac_is_pdus; pdu_no++) {
+        for (pdu_no=0; pdu_no < subframes[n].number_of_mac_is_pdus && pdu_no < 16; pdu_no++) {
             proto_item *f_ti = NULL;
 
             subframes[n].number_of_mac_is_sdus[pdu_no] = 0;
 
             do {
+                if (subframes[n].number_of_mac_is_sdus[pdu_no] == 16) {
+                    expert_add_info_format(pinfo, f_ti, &ei_fp_mac_is_sdus_miscount, "Found too many (%u) MAC-is SDUs - max tracked is 16", macis_sdus_found);
+                    break;
+                }
+
                 /* Check we haven't gone past the limit */
                 if (macis_sdus_found++ > total_macis_sdus) {
                     expert_add_info_format(pinfo, f_ti, &ei_fp_mac_is_sdus_miscount, "Found too many (%u) MAC-is SDUs - header said there were %u", macis_sdus_found, (uint16_t)total_macis_sdus);
@@ -3082,7 +3087,6 @@ dissect_e_dch_t2_or_common_channel_info(tvbuff_t *tvb, packet_info *pinfo, proto
                 f_ti = proto_tree_add_item(subframe_macis_descriptors_tree, hf_fp_edch_macis_flag, tvb, offset, 1, ENC_BIG_ENDIAN);
 
                 subframes[n].number_of_mac_is_sdus[pdu_no]++;
-
                 offset++;
             } while (F == 0);
         }
@@ -3111,7 +3115,7 @@ dissect_e_dch_t2_or_common_channel_info(tvbuff_t *tvb, packet_info *pinfo, proto
             }
 
             /* Call MAC for this PDU if configured to */
-            if (preferences_call_mac_dissectors) {
+            if (preferences_call_mac_dissectors && data) {
                 p_add_proto_data(wmem_file_scope(), pinfo, proto_umts_mac, 0, mac_is_info);
                 call_dissector_with_data(mac_fdd_edch_type2_handle, tvb_new_subset_remaining(tvb, offset), pinfo, top_level_tree, data);
             }
@@ -7084,6 +7088,9 @@ void proto_register_fp(void)
 
 void proto_reg_handoff_fp(void)
 {
+    proto_umts_mac = proto_get_id_by_filter_name("mac");
+    proto_umts_rlc = proto_get_id_by_filter_name("rlc");
+
     rlc_bcch_handle           = find_dissector_add_dependency("rlc.bcch", proto_fp);
     mac_fdd_rach_handle       = find_dissector_add_dependency("mac.fdd.rach", proto_fp);
     mac_fdd_fach_handle       = find_dissector_add_dependency("mac.fdd.fach", proto_fp);

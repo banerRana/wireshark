@@ -413,11 +413,10 @@ ringbuf_error_cleanup(void)
 {
     unsigned int i;
 
-    /* try to close via wtap */
+    /* close output stream if it's still open */
     if (rb_data.pdh != NULL) {
-        if (ws_cwstream_close(rb_data.pdh, NULL) == 0) {
-            rb_data.fd = -1;
-        }
+        ws_cwstream_close_after_error(rb_data.pdh);
+        rb_data.fd = -1;  /* the above closes the associated fd */
         rb_data.pdh = NULL;
     }
 

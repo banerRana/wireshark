@@ -8,11 +8,85 @@
 #
 '''Dissection tests'''
 
-import sys
 import os.path
 import subprocess
-from subprocesstest import count_output, grep_output
+import sys
+
 import pytest
+
+from subprocesstest import count_output, grep_output
+
+
+class TestDissectHttpHeaderSyntax:
+    def test_http_header_syntax_expert_warnings(self, cmd_text2pcap, cmd_tshark, result_file, base_env, test_env):
+        testin_file = result_file('http-header-syntax.txt')
+        testout_file = result_file('http-header-syntax.pcap')
+        payload = '''\
+00000000  47 45 54 20 2f 20 48 54 54 50 2f 31 2e 31 0d 0a
+00000010  48 6f 73 74 3a 20 65 78 61 6d 70 6c 65 2e 63 6f
+00000020  6d 0d 0a 43 6f 6e 74 65 6e 74 2d 4c 65 6e 67 74
+00000030  68 20 3a 20 35 0d 0a 58 2d 54 65 73 74 3a 20 61
+00000040  62 63 00 64 65 66 0d 0a 0d 0a 68 65 6c 6c 6f
+'''
+        with open(testin_file, 'w') as f:
+            f.write(payload)
+        subprocess.check_call((cmd_text2pcap, '-T', '12345,80', testin_file, testout_file), env=base_env)
+
+        stdout = subprocess.check_output((cmd_tshark,
+                '-r', testout_file,
+                '-Tfields',
+                '-eframe.number',
+                '-Y', 'http.header_name.trailing_whitespace && http.header_value.invalid_nul_char',
+            ), encoding='utf-8', env=test_env)
+        assert stdout == '1\n'
+
+
+class TestDissectIcmpv6NeighborDiscovery:
+    def test_nd_hop_limit_validation(self, cmd_text2pcap, cmd_tshark, result_file, base_env, test_env):
+        valid_in = result_file('icmpv6-nd-hlim-valid.txt')
+        invalid_in = result_file('icmpv6-nd-hlim-invalid.txt')
+        valid_pcap = result_file('icmpv6-nd-hlim-valid.pcap')
+        invalid_pcap = result_file('icmpv6-nd-hlim-invalid.pcap')
+
+        valid_payload = '''\
+00000000  60 00 00 00 00 08 3a ff fe 80 00 00 00 00 00 00
+00000010  00 00 00 00 00 00 00 01 ff 02 00 00 00 00 00 00
+00000020  00 00 00 00 00 00 00 02 85 00 7d 36 00 00 00 00
+'''
+        invalid_payload = '''\
+00000000  60 00 00 00 00 08 3a 40 fe 80 00 00 00 00 00 00
+00000010  00 00 00 00 00 00 00 01 ff 02 00 00 00 00 00 00
+00000020  00 00 00 00 00 00 00 02 85 00 7d 36 00 00 00 00
+'''
+
+        for path, payload, output in (
+            (valid_in, valid_payload, valid_pcap),
+            (invalid_in, invalid_payload, invalid_pcap),
+        ):
+            with open(path, 'w') as f:
+                f.write(payload)
+            subprocess.check_call((cmd_text2pcap, '-e', '0x86dd', path, output), env=base_env)
+
+        stdout = subprocess.check_output((cmd_tshark, '-G', 'fields'),
+                                         encoding='utf-8', env=test_env)
+        assert 'icmpv6.nd.hlim.invalid' in stdout
+
+        stdout = subprocess.check_output((cmd_tshark,
+                '-r', valid_pcap,
+                '-Tfields',
+                '-eframe.number',
+                '-Y', 'icmpv6.nd.hlim.invalid',
+            ), encoding='utf-8', env=test_env)
+        assert stdout == ''
+
+        stdout = subprocess.check_output((cmd_tshark,
+                '-r', invalid_pcap,
+                '-Tfields',
+                '-eframe.number',
+                '-e_ws.expert.message',
+                '-Y', 'icmpv6.nd.hlim.invalid',
+            ), encoding='utf-8', env=test_env)
+        assert stdout == '1\tIPv6 Hop Limit must be 255 for this ICMPv6 message (found 64)\n'
 
 
 class TestDissectDtnTcpcl:
@@ -148,6 +222,68 @@ class TestDissectBpv7:
         assert stdout.strip() == '\t'.join(['3', '96', '3,-31'])
 
 
+class TestDissectCbor:
+    '''
+    Test captures generated from the CBOR example files with commands:
+    python3 tools/generate_cbor_pcap.py --infile test/captures/cbor_variety.cbordiag --outfile test/captures/cbor_variety.pcap http
+    python3 tools/generate_cbor_pcap.py --infile test/captures/cborseq_variety.cbordiag --outfile test/captures/cborseq_variety.pcap http --content-type application/cbor-seq
+    '''
+
+    def test_cbor_variety_diag(self, cmd_tshark, capture_file, test_env):
+        stdout = subprocess.check_output((cmd_tshark,
+                '-r', capture_file('cbor_variety.pcap'),
+                '-o', 'cbor.dissect_embeded_bstr:TRUE',
+                '-o', 'cbor.display_diagnostic:top',
+                '-T', 'fields',
+                '-E', 'occurrence=l',
+                '-E', 'escape=n',
+                '-e', 'cbor.diagnostic',
+            ), encoding='utf-8', env=test_env)
+        expect = (
+            '[_ '
+            '[undefined, null, false, true, simple(10)], '
+            '[0, 10, 9223372036854775807, 18446744073709551615], '
+            '[-1, -10, -9223372036854775808, -9223372036854775809, -18446744073709551616], '
+            '[0.00000, 10.0000, 65504.0, -65504.0, NaN, -Infinity, Infinity], '
+            '[65505.0000000000, -65505.0000000000, 3.40282346638529e+38, -3.40282346638529e+38], '
+            '[3.40282346638529e+39, -3.40282346638529e+39, 1.79769313486232e+308, -1.79769313486232e+308], '
+            r"""['', ''_, 'test', 'Café', '\\'in"', h'00cafe', (_ 'te', 'st')], """
+            r"""["", ""_, "test", "Café", "'in\\"", "\\t\\n\\u200B", (_ "te", "st")], """
+            '[[], [_ ], [_ 1, 2, 3]], '
+            '[{}, {_ }, {_ 1: 2, 3: 4}], '
+            r"""[2(h'66691b50'), 24(<<10>>)], """
+            '[<<10>>, <<1, 2, "hi">>]'
+            ']'
+        )
+        assert stdout.strip() == expect
+
+    def test_cborseq_variety_diag(self, cmd_tshark, capture_file, test_env):
+        stdout = subprocess.check_output((cmd_tshark,
+                '-r', capture_file('cborseq_variety.pcap'),
+                '-o', 'cbor.dissect_embeded_bstr:TRUE',
+                '-o', 'cbor.display_diagnostic:top',
+                '-T', 'fields',
+                '-E', 'occurrence=l',
+                '-E', 'escape=n',
+                '-e', 'cbor.diagnostic',
+            ), encoding='utf-8', env=test_env)
+        expect = (
+            '[undefined, null, false, true, simple(10)], '
+            '[0, 10, 9223372036854775807, 18446744073709551615], '
+            '[-1, -10, -9223372036854775808, -9223372036854775809, -18446744073709551616], '
+            '[0.00000, 10.0000, 65504.0, -65504.0, NaN, -Infinity, Infinity], '
+            '[65505.0000000000, -65505.0000000000, 3.40282346638529e+38, -3.40282346638529e+38], '
+            '[3.40282346638529e+39, -3.40282346638529e+39, 1.79769313486232e+308, -1.79769313486232e+308], '
+            r"""['', 'test', 'Café', '\\'in"', h'00cafe', (_ 'te', 'st')], """
+            r"""["", "test", "Café", "'in\\"", "\\t\\n\\u200B", (_ "te", "st")], """
+            '[[], [_ 1, 2, 3]], '
+            '[{}, {_ 1: 2, 3: 4}], '
+            r"""[2(h'66691b50'), 24(<<10>>)], """
+            '[<<10>>, <<1, 2, "hi">>]'
+        )
+        assert stdout.strip() == expect
+
+
 class TestDissectCose:
     '''
     These test captures were generated from the COSE example files with command:
@@ -236,7 +372,7 @@ class TestDissectGprpc:
                 '-d', 'tcp.port==50051,http2',
                 '-2',
                 '-Y', 'protobuf.message.name == "tutorial.PersonSearchRequest"'
-                      ' || (grpc.message_length == 66 && protobuf.field.value.string == "Jason"'
+                      ' || (grpc.message_length == 66 && protobuf.field.value.string == "Jason"' +
                       '     && protobuf.field.value.int64 == 1602601886)',
             ), encoding='utf-8', env=test_env)
         assert grep_output(stdout, 'tutorial.PersonSearchService/Search') # grpc request
@@ -252,21 +388,21 @@ class TestDissectGprpc:
                 '-d', 'tcp.port==44363,http2',
                 '-2', # make http2.body.reassembled.in available
                 '-Y', # Case1: In frame28, one http DATA contains 4 completed grpc messages (json data seq=1,2,3,4).
-                      '(frame.number == 28 && grpc && json.value.number == 1 && json.value.number == 2'
-                      ' && json.value.number == 3 && json.value.number == 4 && http2.body.reassembled.in == 45) ||'
+                      '(frame.number == 28 && grpc && json.value.number == 1 && json.value.number == 2' +
+                      ' && json.value.number == 3 && json.value.number == 4 && http2.body.reassembled.in == 45) ||' +
                       # Case2: In frame28, last grpc message (the 5th) only has 4 bytes, which need one more byte
                       # to be a message head. a completed message is reassembled in frame45. (json data seq=5)
-                      '(frame.number == 45 && grpc && http2.body.fragment == 28 && json.value.number == 5'
-                      ' && http2.body.reassembled.in == 61) ||'
+                      '(frame.number == 45 && grpc && http2.body.fragment == 28 && json.value.number == 5' +
+                      ' && http2.body.reassembled.in == 61) ||' +
                       # Case3: In frame45, one http DATA frame contains two partial fragment, one is part of grpc
                       # message of previous http DATA (frame28), another is first part of grpc message of next http
                       # DATA (which will be reassembled in next http DATA frame61). (json data seq=6)
-                      '(frame.number == 61 && grpc && http2.body.fragment == 45 && json.value.number == 6) ||'
+                      '(frame.number == 61 && grpc && http2.body.fragment == 45 && json.value.number == 6) ||' +
                       # Case4: A big grpc message across frame100, frame113, frame126 and finally reassembled in frame139.
-                      '(frame.number == 100 && grpc && http2.body.reassembled.in == 139) ||'
-                      '(frame.number == 113 && !grpc && http2.body.reassembled.in == 139) ||'
-                      '(frame.number == 126 && !grpc && http2.body.reassembled.in == 139) ||'
-                      '(frame.number == 139 && grpc && json.value.number == 9) ||'
+                      '(frame.number == 100 && grpc && http2.body.reassembled.in == 139) ||' +
+                      '(frame.number == 113 && !grpc && http2.body.reassembled.in == 139) ||' +
+                      '(frame.number == 126 && !grpc && http2.body.reassembled.in == 139) ||' +
+                      '(frame.number == 139 && grpc && json.value.number == 9) ||' +
                       # Case5: An large grpc message of 200004 bytes.
                       '(frame.number == 164 && grpc && grpc.message_length == 200004)',
             ), encoding='utf-8', env=test_env)
@@ -308,8 +444,8 @@ class TestDissectGrpcWeb:
                 '-o', 'protobuf.pbf_as_hf: TRUE',
                 '-d', 'tcp.port==57226,http',
                 '-2',
-                '-Y', '(tcp.stream eq 0) && (pbf.greet.HelloRequest.name == "88888888"'
-                        '|| pbf.greet.HelloRequest.name == "99999999"'
+                '-Y', '(tcp.stream eq 0) && (pbf.greet.HelloRequest.name == "88888888"' +
+                        '|| pbf.greet.HelloRequest.name == "99999999"' +
                         '|| pbf.greet.HelloReply.message == "Hello 99999999")',
             ), encoding='utf-8', env=test_env)
         assert count_output(stdout, 'greet.HelloRequest') == 2
@@ -329,8 +465,8 @@ class TestDissectGrpcWeb:
                 '-o', 'protobuf.pbf_as_hf: TRUE',
                 '-d', 'tcp.port==57228,http2',
                 '-2',
-                '-Y', '(tcp.stream eq 1) && (pbf.greet.HelloRequest.name == "88888888"'
-                        '|| pbf.greet.HelloRequest.name == "99999999"'
+                '-Y', '(tcp.stream eq 1) && (pbf.greet.HelloRequest.name == "88888888"' +
+                        '|| pbf.greet.HelloRequest.name == "99999999"' +
                         '|| pbf.greet.HelloReply.message == "Hello 99999999")',
             ), encoding='utf-8', env=test_env)
         assert count_output(stdout, 'greet.HelloRequest') == 2
@@ -350,7 +486,7 @@ class TestDissectGrpcWeb:
                 '-o', 'protobuf.pbf_as_hf: TRUE',
                 '-d', 'tcp.port==57228,http2',
                 '-2',
-                '-Y', '(tcp.stream eq 2) && ((pbf.greet.HelloRequest.name && grpc.message_length == 80004)'
+                '-Y', '(tcp.stream eq 2) && ((pbf.greet.HelloRequest.name && grpc.message_length == 80004)' +
                        '|| (pbf.greet.HelloReply.message && (grpc.message_length == 23 || grpc.message_length == 80012)))',
             ), encoding='utf-8', env=test_env)
         assert count_output(stdout, 'greet.HelloRequest') == 2
@@ -368,8 +504,8 @@ class TestDissectGrpcWeb:
                 '-o', 'protobuf.pbf_as_hf: TRUE',
                 '-d', 'tcp.port==57226,http',
                 '-2',
-                '-Y', '(tcp.stream eq 5) && (pbf.greet.HelloRequest.name == "88888888"'
-                        '|| pbf.greet.HelloRequest.name == "99999999"'
+                '-Y', '(tcp.stream eq 5) && (pbf.greet.HelloRequest.name == "88888888"' +
+                        '|| pbf.greet.HelloRequest.name == "99999999"' +
                         '|| pbf.greet.HelloReply.message == "Hello 99999999")',
             ), encoding='utf-8', env=test_env)
         assert grep_output(stdout, 'GRPC-Web-Text')
@@ -390,8 +526,8 @@ class TestDissectGrpcWeb:
                 '-o', 'protobuf.pbf_as_hf: TRUE',
                 '-d', 'tcp.port==57228,http2',
                 '-2',
-                '-Y', '(tcp.stream eq 6) && (pbf.greet.HelloRequest.name == "88888888"'
-                        '|| pbf.greet.HelloRequest.name == "99999999"'
+                '-Y', '(tcp.stream eq 6) && (pbf.greet.HelloRequest.name == "88888888"' +
+                        '|| pbf.greet.HelloRequest.name == "99999999"' +
                         '|| pbf.greet.HelloReply.message == "Hello 99999999")',
             ), encoding='utf-8', env=test_env)
         assert grep_output(stdout, 'GRPC-Web-Text')
@@ -412,7 +548,7 @@ class TestDissectGrpcWeb:
                 '-o', 'protobuf.pbf_as_hf: TRUE',
                 '-d', 'tcp.port==57228,http2',
                 '-2',
-                '-Y', '(tcp.stream eq 8) && ((pbf.greet.HelloRequest.name && grpc.message_length == 80004)'
+                '-Y', '(tcp.stream eq 8) && ((pbf.greet.HelloRequest.name && grpc.message_length == 80004)' +
                        '|| (pbf.greet.HelloReply.message && (grpc.message_length == 23 || grpc.message_length == 80012)))',
             ), encoding='utf-8', env=test_env)
         assert grep_output(stdout, 'GRPC-Web-Text')
@@ -449,7 +585,7 @@ class TestDissectGrpcWeb:
                 '-o', 'protobuf.pbf_as_hf: TRUE',
                 '-d', 'tcp.port==57226,http',
                 '-2',
-                '-Y', '(tcp.stream eq 9) && ((pbf.greet.HelloRequest.name && grpc.message_length == 10)'
+                '-Y', '(tcp.stream eq 9) && ((pbf.greet.HelloRequest.name && grpc.message_length == 10)' +
                        '|| (pbf.greet.HelloReply.message && grpc.message_length == 18))',
             ), encoding='utf-8', env=test_env)
         assert grep_output(stdout, 'GRPC-Web')
@@ -468,7 +604,7 @@ class TestDissectGrpcWeb:
                 '-o', 'protobuf.pbf_as_hf: TRUE',
                 '-d', 'tcp.port==57226,http',
                 '-2',
-                '-Y', '(tcp.stream eq 10) && ((pbf.greet.HelloRequest.name && grpc.message_length == 80004)'
+                '-Y', '(tcp.stream eq 10) && ((pbf.greet.HelloRequest.name && grpc.message_length == 80004)' +
                        '|| (pbf.greet.HelloReply.message && (grpc.message_length == 23 || grpc.message_length == 80012)))',
             ), encoding='utf-8', env=test_env)
         assert grep_output(stdout, 'GRPC-Web')
@@ -478,6 +614,22 @@ class TestDissectGrpcWeb:
 
 
 class TestDissectHttp:
+    def test_http_request_target_whitespace(self, cmd_tshark, capture_file, test_env):
+        stdout = subprocess.check_output((cmd_tshark,
+                '-r', capture_file('http-tab-request.pcapng'),
+                '-Tfields',
+                '-e_ws.expert',
+                '-ehttp.request.method',
+                '-ehttp.request.uri',
+                '-ehttp.request.version',
+                '-ehttp.request.full_uri',
+            ), encoding='utf-8', env=test_env)
+        assert grep_output(stdout, 'GET')
+        assert '/foo\\tbar' in stdout
+        assert grep_output(stdout, 'HTTP/1.1')
+        assert 'http://example.com/foo\\tbar' in stdout
+        assert grep_output(stdout, 'Request target contains whitespace')
+
     def test_http_brotli_decompression(self, cmd_tshark, features, dirs, capture_file, test_env):
         '''HTTP brotli decompression'''
         if not features.have_brotli:
@@ -497,7 +649,7 @@ class TestDissectHttp2:
         key_file = os.path.join(dirs.key_dir, 'http2-data-reassembly.keys')
         stdout = subprocess.check_output((cmd_tshark,
                 '-r', capture_file('http2-data-reassembly.pcap'),
-                '-o', 'tls.keylog_file: {}'.format(key_file),
+                '-o', f'tls.keylog_file: {key_file}',
                 '-d', 'tcp.port==8443,tls',
                 '-Y', 'http2.data.data matches "PNG" && http2.data.data matches "END"',
             ), encoding='utf-8', env=test_env)
@@ -534,7 +686,7 @@ class TestDissectHttp2:
         key_file = os.path.join(dirs.key_dir, 'http2-data-reassembly.keys')
         stdout = subprocess.check_output((cmd_tshark,
                 '-r', capture_file('http2-data-reassembly.pcap'),
-                '-o', 'tls.keylog_file: {}'.format(key_file),
+                '-o', f'tls.keylog_file: {key_file}',
                 '-z', 'follow,http2,hex,0,0'
             ), encoding='utf-8', env=test_env)
         # Stream ID 0 bytes
@@ -551,7 +703,7 @@ class TestDissectHttp2:
         key_file = os.path.join(dirs.key_dir, 'http2-data-reassembly.keys')
         stdout = subprocess.check_output((cmd_tshark,
                 '-r', capture_file('http2-data-reassembly.pcap'),
-                '-o', 'tls.keylog_file: {}'.format(key_file),
+                '-o', f'tls.keylog_file: {key_file}',
                 '-z', 'follow,http2,hex,0,1'
             ), encoding='utf-8', env=test_env)
         # Stream ID 0 bytes
@@ -593,7 +745,7 @@ class TestDissectProtobuf:
                 '-o', 'protobuf.preload_protos: TRUE',
                 '-o', 'protobuf.pbf_as_hf: TRUE',
                 '-Y', 'pbf.tutorial.Person.name == "Jason"'
-                      ' && pbf.tutorial.Person.last_updated > "2020-10-15"'
+                      ' && pbf.tutorial.Person.last_updated > "2020-10-15"' +
                       ' && pbf.tutorial.Person.last_updated < "2020-10-19"',
             ), encoding='utf-8', env=test_env)
         assert grep_output(stdout, 'tutorial.AddressBook')
@@ -624,8 +776,8 @@ class TestDissectProtobuf:
                 '-o', 'uat:protobuf_udp_message_types: "8124","test.map.MapMaster"',
                 '-o', 'protobuf.preload_protos: TRUE',
                 '-o', 'protobuf.pbf_as_hf: TRUE',
-                '-Y', 'pbf.test.map.MapMaster.param3 == "I\'m param3 for oneof test."'  # test oneof type
-                      ' && pbf.test.map.MapMaster.param4MapEntry.value == 1234'        # test map type
+                '-Y', 'pbf.test.map.MapMaster.param3 == "I\'m param3 for oneof test."' +  # test oneof type
+                      ' && pbf.test.map.MapMaster.param4MapEntry.value == 1234' +         # test map type
                       ' && pbf.test.map.Foo.param1 == 88 && pbf.test.map.MapMaster.param5MapEntry.key == 88'
             ), encoding='utf-8', env=test_env)
         assert grep_output(stdout, 'PB[(]test.map.MapMaster[)]')
@@ -643,16 +795,16 @@ class TestDissectProtobuf:
                 '-o', 'protobuf.pbf_as_hf: TRUE',
                 '-o', 'protobuf.add_default_value: all',
                 '-O', 'protobuf',
-                '-Y', 'pbf.wireshark.protobuf.test.TestDefaultValueMessage.enumFooWithDefaultValue_Fouth == -4'
-                      ' && pbf.wireshark.protobuf.test.TestDefaultValueMessage.boolWithDefaultValue_False == false'
-                      ' && pbf.wireshark.protobuf.test.TestDefaultValueMessage.int32WithDefaultValue_0 == 0'
-                      ' && pbf.wireshark.protobuf.test.TestDefaultValueMessage.doubleWithDefaultValue_Negative0point12345678 == -0.12345678'
-                      ' && pbf.wireshark.protobuf.test.TestDefaultValueMessage.stringWithDefaultValue_SymbolPi contains "Pi."'
-                      ' && pbf.wireshark.protobuf.test.TestDefaultValueMessage.bytesWithDefaultValue_1F2F890D0A00004B == 1f:2f:89:0d:0a:00:00:4b'
-                      ' && pbf.wireshark.protobuf.test.TestDefaultValueMessage.optional' # test taking keyword 'optional' as identification
-                      ' && pbf.wireshark.protobuf.test.TestDefaultValueMessage.message' # test taking keyword 'message' as identification
-                      ' && pbf.wireshark.protobuf.test.TestDefaultValueMessage.stringWithNoValue == ""' # test default value is empty for strings
-                      ' && pbf.wireshark.protobuf.test.TestDefaultValueMessage.bytesWithNoValue == ""' # test default value is empty for bytes
+                '-Y', 'pbf.wireshark.protobuf.test.TestDefaultValueMessage.enumFooWithDefaultValue_Fouth == -4' +
+                      ' && pbf.wireshark.protobuf.test.TestDefaultValueMessage.boolWithDefaultValue_False == false' +
+                      ' && pbf.wireshark.protobuf.test.TestDefaultValueMessage.int32WithDefaultValue_0 == 0' +
+                      ' && pbf.wireshark.protobuf.test.TestDefaultValueMessage.doubleWithDefaultValue_Negative0point12345678 == -0.12345678' +
+                      ' && pbf.wireshark.protobuf.test.TestDefaultValueMessage.stringWithDefaultValue_SymbolPi contains "Pi."' +
+                      ' && pbf.wireshark.protobuf.test.TestDefaultValueMessage.bytesWithDefaultValue_1F2F890D0A00004B == 1f:2f:89:0d:0a:00:00:4b' +
+                      ' && pbf.wireshark.protobuf.test.TestDefaultValueMessage.optional' +  # test taking keyword 'optional' as identification
+                      ' && pbf.wireshark.protobuf.test.TestDefaultValueMessage.message' +  # test taking keyword 'message' as identification
+                      ' && pbf.wireshark.protobuf.test.TestDefaultValueMessage.stringWithNoValue == ""' +  # test default value is empty for strings
+                      ' && pbf.wireshark.protobuf.test.TestDefaultValueMessage.bytesWithNoValue == ""'  # test default value is empty for bytes
             ), encoding='utf-8', env=test_env)
         assert grep_output(stdout, 'floatWithDefaultValue_0point23: 0.23') # another default value will be displayed
         assert grep_output(stdout, 'missing required field \'missingRequiredField\'') # check the missing required field export warn
@@ -671,7 +823,7 @@ class TestDissectProtobuf:
                 '-o', 'uat:protobuf_udp_message_types: "8127","tutorial.AddressBook"',
                 '-o', 'protobuf.preload_protos: TRUE',
                 '-o', 'protobuf.pbf_as_hf: TRUE',
-                '-X', 'lua_script:{}'.format(lua_file),
+                '-X', f'lua_script:{lua_file}',
                 '-Y', 'pbf.tutorial.Person.name == "Jason" && pbf.tutorial.Person.last_updated && png',
             ), encoding='utf-8', env=test_env)
         assert grep_output(stdout, 'PB[(]tutorial.AddressBook[)]')
@@ -689,7 +841,7 @@ class TestDissectProtobuf:
                 '-o', 'uat:protobuf_search_paths: "{}","{}"'.format(user_defined_types_dir, 'TRUE'),
                 '-o', 'protobuf.preload_protos: TRUE',
                 '-o', 'protobuf.pbf_as_hf: TRUE',
-                '-X', 'lua_script:{}'.format(lua_file),
+                '-X', f'lua_script:{lua_file}',
                 '-d', 'tcp.port==18127,addrbook',
                 '-Y', 'pbf.tutorial.Person.name == "Jason" && pbf.tutorial.Person.last_updated',
             ), encoding='utf-8', env=test_env)
@@ -705,7 +857,7 @@ class TestDissectProtobuf:
                 '-o', 'uat:protobuf_search_paths: "{}","{}"'.format(complex_proto_files_dir, 'TRUE'),
                 '-o', 'protobuf.preload_protos: TRUE',
                 '-o', 'protobuf.pbf_as_hf: TRUE',
-                '-Y', 'pbf.wireshark.protobuf.test.complex.syntax.TestFileParsed.last_field_for_wireshark_test'
+                '-Y', 'pbf.wireshark.protobuf.test.complex.syntax.TestFileParsed.last_field_for_wireshark_test' +
                       ' && pbf.protobuf_unittest.TestFileParsed.last_field_for_wireshark_test',
             ), encoding='utf-8', env=test_env)
         # the output must be empty and not contain something like:
@@ -1003,7 +1155,7 @@ class TestDecompressSmb2:
         stdout = subprocess.check_output((cmd_tshark,
                 '-r', capture_file('smb311-lz77-lz77huff-lznt1.pcap.gz'),
                 '-Tfields', '-edata.data',
-                '-Y', 'frame.number == %d'%frame_num,
+                '-Y', f'frame.number == {frame_num}'
         ), encoding='utf-8', env=test_env)
         assert b'a'*4096 == bytes.fromhex(stdout.strip())
 
@@ -1022,7 +1174,7 @@ class TestDecompressSmb2:
         stdout = subprocess.check_output((cmd_tshark,
             '-r', capture_file('smb311-chained-patternv1-lznt1.pcapng.gz'),
             '-Tfields', '-edata.data',
-            '-Y', 'frame.number == %d'%frame_num,
+            '-Y', f'frame.number == {frame_num}'
         ), encoding='utf-8', env=test_env)
         assert b'\xaa'*256 == bytes.fromhex(stdout.strip())
 
@@ -1201,3 +1353,355 @@ class TestDissectUsbHid:
                 '-Tfields', '-eusbhid.data.padding',
             ), encoding='utf-8', env=test_env)
         assert stdout.strip() == '03,ff07\n01,b907\n00,0000'
+
+class TestDissectUltraEthernet:
+    def test_uet_crc(self, cmd_tshark, capture_file, test_env):
+        '''Verify we compute a good CRC for various IP and UDP encapsulations.'''
+        stdout = subprocess.check_output((cmd_tshark,
+                '-r', capture_file('uet-generated-crc-encaps.pcap'),
+                '-ouet.has_crc:TRUE',
+                '-ouet.validate_crc:TRUE',
+                '-dip.proto==253,uet',
+                '-Tfields', '-euet.crc.status',
+            ), encoding='utf-8', env=test_env)
+        assert stdout.strip().split() == (['1'] * 48)
+
+
+# UDX ships its heuristic disabled, so the tests enable it explicitly.
+UDX_HEUR = ('--enable-heuristic', 'udx_udp')
+
+
+class TestDissectUdx:
+    def test_udx_heuristic_disabled_by_default(self, cmd_tshark, capture_file, test_env):
+        '''The heuristic is off unless the user asks for it.'''
+        stdout = subprocess.check_output((cmd_tshark,
+                '-r', capture_file('udx_clean.pcap.gz'),
+                '-Y', 'udx',
+                '-Tfields', '-eframe.number',
+            ), encoding='utf-8', env=test_env)
+        assert count_output(stdout) == 0
+
+    def test_udx_heuristic(self, cmd_tshark, capture_file, test_env):
+        '''Every packet of a UDX capture is recognised by the heuristic.'''
+        stdout = subprocess.check_output((cmd_tshark, *UDX_HEUR,
+                '-r', capture_file('udx_clean.pcap.gz'),
+                '-Y', 'udx',
+                '-Tfields', '-eframe.number',
+            ), encoding='utf-8', env=test_env)
+        assert count_output(stdout) == 130
+
+    def test_udx_header_fields(self, cmd_tshark, capture_file, test_env):
+        '''Header fields decode with the little-endian byte order UDX uses.'''
+        stdout = subprocess.check_output((cmd_tshark, *UDX_HEUR,
+                '-r', capture_file('udx_clean.pcap.gz'),
+                '-c', '1',
+                '-Tfields', '-eudx.id', '-eudx.seq', '-eudx.ack', '-eudx.rwnd',
+            ), encoding='utf-8', env=test_env)
+        assert stdout.strip() == '101\t0\t0\t4194304'
+
+    def test_udx_sack_blocks(self, cmd_tshark, capture_file, test_env):
+        '''Selective acknowledgement ranges are decoded as pairs.'''
+        stdout = subprocess.check_output((cmd_tshark, *UDX_HEUR,
+                '-r', capture_file('udx_loss.pcap.gz'),
+                '-Y', 'udx.sack.start',
+                '-Tfields', '-eudx.sack.start', '-eudx.sack.end',
+            ), encoding='utf-8', env=test_env)
+        assert grep_output(stdout, r'^6\t8')
+
+    def test_udx_many_sack_blocks(self, cmd_tshark, capture_file, test_env):
+        '''A selective acknowledgement is not limited to what data_offset can
+        delimit.
+
+        A packet carrying no payload leaves data_offset zero and its blocks run
+        to the end of the datagram, which is how libudx reports a badly
+        fragmented receive window. It sends up to fifty of them, well past the
+        thirty-one that would fit in a delimited area.
+        '''
+        stdout = subprocess.check_output((cmd_tshark, *UDX_HEUR,
+                '-r', capture_file('udx_sackblocks.pcap.gz'),
+                '-Y', 'udx.type.sack == 1',
+                '-Tfields', '-eudx.sack.start',
+            ), encoding='utf-8', env=test_env)
+        assert len(stdout.strip().split(',')) == 40
+
+    def test_udx_repeat_below_the_timers(self, cmd_tshark, capture_file, test_env):
+        '''A repeat too soon to be either of libudx's timers is just a repeat.
+
+        Nothing on this flow has been acknowledged, so there is no round trip
+        time and both the retransmission timeout and the probe timer sit at
+        their floor of one second. A repeat half a second in cannot be either,
+        and saying which timer fired would be inventing one.
+        '''
+        stdout = subprocess.check_output((cmd_tshark, *UDX_HEUR, '-2',
+                '-r', capture_file('udx_norto.pcap.gz'),
+                '-V',
+            ), encoding='utf-8', env=test_env)
+        assert grep_output(stdout, 'This packet was retransmitted')
+        assert not grep_output(stdout, 'Retransmission timeout')
+        assert not grep_output(stdout, 'Tail loss probe')
+
+    def test_udx_stream_pairing(self, cmd_tshark, capture_file, test_env):
+        '''Three streams multiplexed over one socket pair are told apart.
+
+        Packets carry only the receiver's stream id, so each flow has to be
+        matched with its reverse by correlating acknowledgements.
+        '''
+        stdout = subprocess.check_output((cmd_tshark, *UDX_HEUR, '-2',
+                '-r', capture_file('udx_multi.pcap.gz'),
+                '-Tfields', '-eudx.stream',
+            ), encoding='utf-8', env=test_env)
+        assert sorted(set(stdout.split())) == ['0', '1', '2']
+
+    def test_udx_fast_retransmission(self, cmd_tshark, capture_file, test_env):
+        '''A packet resent while later ones were selectively acknowledged.'''
+        stdout = subprocess.check_output((cmd_tshark, *UDX_HEUR, '-2',
+                '-r', capture_file('udx_loss.pcap.gz'),
+                '-Y', 'udx.analysis.fast_retransmission',
+                '-Tfields', '-eframe.number',
+            ), encoding='utf-8', env=test_env)
+        assert count_output(stdout) == 2
+
+    def test_udx_keepalive(self, cmd_tshark, capture_file, test_env):
+        '''A bare heartbeat with the window open is a keepalive.'''
+        stdout = subprocess.check_output((cmd_tshark, *UDX_HEUR, '-2',
+                '-r', capture_file('udx_keepalive.pcap.gz'),
+                '-Y', 'udx.analysis.keepalive',
+                '-Tfields', '-eframe.number',
+            ), encoding='utf-8', env=test_env)
+        assert count_output(stdout) == 3
+
+    def test_udx_zero_window_probe(self, cmd_tshark, capture_file, test_env):
+        '''The same heartbeat is a probe once the peer closes its window.
+
+        Keepalives and zero-window probes are identical on the wire; only the
+        window last advertised by the peer separates them.
+        '''
+        stdout = subprocess.check_output((cmd_tshark, *UDX_HEUR, '-2',
+                '-r', capture_file('udx_zerowindow.pcap.gz'),
+                '-Y', 'udx.analysis.zero_window_probe',
+                '-Tfields', '-eframe.number',
+            ), encoding='utf-8', env=test_env)
+        assert count_output(stdout) == 2
+
+        stdout = subprocess.check_output((cmd_tshark, *UDX_HEUR, '-2',
+                '-r', capture_file('udx_zerowindow.pcap.gz'),
+                '-Y', 'udx.analysis.window_update',
+                '-Tfields', '-eframe.number',
+            ), encoding='utf-8', env=test_env)
+        assert count_output(stdout) == 1
+
+    def test_udx_mtu_probe(self, cmd_tshark, capture_file, test_env):
+        '''Padding without SACK blocks marks a path MTU probe.'''
+        stdout = subprocess.check_output((cmd_tshark, *UDX_HEUR, '-2',
+                '-r', capture_file('udx_mtuprobe.pcap.gz'),
+                '-Y', 'udx.analysis.mtu_probe',
+                '-Tfields', '-eframe.number', '-eudx.data_offset',
+            ), encoding='utf-8', env=test_env)
+        assert count_output(stdout) == 3
+        assert grep_output(stdout, r'\t32$')
+
+    def test_udx_sequence_wraparound(self, cmd_tshark, capture_file, test_env):
+        '''Analysis survives sequence numbers crossing 2^32.'''
+        stdout = subprocess.check_output((cmd_tshark, *UDX_HEUR, '-2',
+                '-r', capture_file('udx_seqwrap.pcap.gz'),
+                '-Tfields', '-eudx.stream', '-eudx.analysis.acks_frame',
+            ), encoding='utf-8', env=test_env)
+        assert sorted(set(stdout.split('\n')[0].split('\t'))) == ['', '0']
+        assert grep_output(stdout, r'^0\t1$')
+
+    def test_udx_rto_beats_sack(self, cmd_tshark, capture_file, test_env):
+        '''A full timeout decides a retransmission, even with later SACKs.
+
+        Sequence 0 is lost while 1 and 2 arrive and are selectively
+        acknowledged, so the highest selectively acknowledged sequence sits
+        above the resent one. The resend still comes a second and a half
+        later, which makes it a timer retransmission rather than a fast one.
+        '''
+        stdout = subprocess.check_output((cmd_tshark, *UDX_HEUR, '-2',
+                '-r', capture_file('udx_rto.pcap.gz'),
+                '-V',
+            ), encoding='utf-8', env=test_env)
+        assert grep_output(stdout, 'Retransmission timeout')
+        assert not grep_output(stdout, 'Fast retransmission')
+
+    def test_udx_sack_acknowledges(self, cmd_tshark, capture_file, test_env):
+        '''A selective acknowledgement acknowledges the packet it names.'''
+        stdout = subprocess.check_output((cmd_tshark, *UDX_HEUR, '-2',
+                '-r', capture_file('udx_rto.pcap.gz'),
+                '-Tfields', '-eframe.number', '-eudx.analysis.acked_in',
+            ), encoding='utf-8', env=test_env)
+        # Sequences 1 and 2 are acknowledged by the first SACK, in frame 4,
+        # not by the cumulative acknowledgement that arrives in frame 7.
+        assert grep_output(stdout, r'^2\t4$')
+        assert grep_output(stdout, r'^3\t4$')
+
+    def test_udx_tail_loss_probe_with_new_data(self, cmd_tshark, capture_file, test_env):
+        '''A probe that carries new data is still a probe.'''
+        stdout = subprocess.check_output((cmd_tshark, *UDX_HEUR, '-2',
+                '-r', capture_file('udx_tlpnew.pcap.gz'),
+                '-V',
+            ), encoding='utf-8', env=test_env)
+        assert grep_output(stdout, 'Tail loss probe')
+
+    def test_udx_follow_stream(self, cmd_tshark, capture_file, test_env):
+        '''Following a stream yields the payload in both directions.'''
+        stdout = subprocess.check_output((cmd_tshark, *UDX_HEUR,
+                '-r', capture_file('udx_clean.pcap.gz'),
+                '-q', '-z', 'follow,udx,ascii,0',
+            ), encoding='utf-8', env=test_env)
+        assert grep_output(stdout, 'Node 0: 10.0.0.1:40000')
+        assert grep_output(stdout, 'Node 1: 10.0.0.2:40001')
+
+    def test_udx_follow_reassembly(self, cmd_tshark, capture_file, test_env):
+        '''Loss and retransmission do not change the reassembled payload.
+
+        The same transfer is captured cleanly and with two packets lost; the
+        payload handed to the application must be identical in both.
+        '''
+        def payload(name):
+            stdout = subprocess.check_output((cmd_tshark, *UDX_HEUR,
+                    '-r', capture_file(name),
+                    '-q', '-z', 'follow,udx,ascii,0',
+                ), encoding='utf-8', env=test_env)
+            # Keep the data lines, dropping the header and the byte counts.
+            return [l for l in stdout.splitlines() if l.strip() and not l.strip().isdigit()]
+
+        assert payload('udx_clean.pcap.gz')[-20:] == payload('udx_loss.pcap.gz')[-20:]
+
+    def test_udx_follow_superseded_fragment(self, cmd_tshark, capture_file, test_env):
+        '''A held packet that is delivered by another copy stops holding up
+        the ones behind it.
+
+        Sequence 2 is held while the gap at 1 is open and arrives a second
+        time before that gap closes. Filling the gap delivers one copy; the
+        other has to be discarded rather than left at the head of the pending
+        list, where it would block every packet after it.
+        '''
+        stdout = subprocess.check_output((cmd_tshark, *UDX_HEUR,
+                '-r', capture_file('udx_followstall.pcap.gz'),
+                '-q', '-z', 'follow,udx,ascii,0',
+            ), encoding='utf-8', env=test_env)
+        # All six packets, in sequence order, including the one sent last.
+        payload = [l for l in stdout.splitlines() if l and set(l) <= set('abcdef')]
+        assert ''.join(payload) == ''.join(c * 16 for c in 'abcdef')
+
+    def test_udx_acknowledges_below_first_seen(self, cmd_tshark, capture_file, test_env):
+        '''The first packet on the wire need not hold the lowest sequence.
+
+        Sequence 0 was lost and resent, so it appears after 1 and 2. The
+        cumulative acknowledgement covers all three and has to retire it.
+        '''
+        stdout = subprocess.check_output((cmd_tshark, *UDX_HEUR, '-2',
+                '-r', capture_file('udx_lateseq.pcap.gz'),
+                '-Tfields', '-eframe.number', '-eudx.analysis.acked_in',
+            ), encoding='utf-8', env=test_env)
+        assert grep_output(stdout, r'^3\t4$')
+
+    def test_udx_rtt_measured_on_sending_flow(self, cmd_tshark, capture_file, test_env):
+        '''The round trip time belongs to the flow whose packet was timed.
+
+        Only one side sends data here, so if the sample were credited to the
+        flow carrying the acknowledgements the sending flow would never have
+        one, and this six millisecond pause would fall under the floor that
+        applies when no round trip time is known.
+        '''
+        stdout = subprocess.check_output((cmd_tshark, *UDX_HEUR, '-2',
+                '-r', capture_file('udx_rtttlp.pcap.gz'),
+                '-V',
+            ), encoding='utf-8', env=test_env)
+        assert grep_output(stdout, 'Tail loss probe')
+
+    def test_udx_conversations_split_multiplexed_streams(self, cmd_tshark, capture_file, test_env):
+        '''Three streams on one socket pair are three UDX conversations.
+
+        The enclosing UDP flow counts them together, so the UDP table shows a
+        single conversation for the same capture.
+        '''
+        def rows(table):
+            stdout = subprocess.check_output((cmd_tshark, *UDX_HEUR,
+                    '-r', capture_file('udx_multi.pcap.gz'),
+                    '-q', '-z', table,
+                ), encoding='utf-8', env=test_env)
+            return [l for l in stdout.splitlines() if '<->' in l]
+
+        assert len(rows('conv,udp')) == 1
+        assert len(rows('conv,udx')) == 3
+
+    def test_udx_conversation_totals(self, cmd_tshark, capture_file, test_env):
+        '''The streams account for exactly what the UDP conversation carried.
+
+        Each of the three streams reports 127 frames and 75728 bytes, which adds
+        up to the 381 frames and 227184 bytes the UDP table reports for the whole
+        capture. Byte counts are asked for machine readable so the columns are
+        plain integers rather than SI prefixed.
+        '''
+        def total(table):
+            stdout = subprocess.check_output((cmd_tshark, *UDX_HEUR,
+                    '-r', capture_file('udx_multi.pcap.gz'),
+                    '-o', 'conv.machine_readable:TRUE',
+                    '-q', '-z', table,
+                ), encoding='utf-8', env=test_env)
+            rows = [l.split() for l in stdout.splitlines() if '<->' in l]
+            return [(int(r[7]), int(r[8])) for r in rows]
+
+        assert total('conv,udx') == [(127, 75728)] * 3
+        assert total('conv,udp') == [(381, 227184)]
+
+    def test_udx_endpoints(self, cmd_tshark, capture_file, test_env):
+        '''Both ends appear once, with the traffic split by direction.'''
+        stdout = subprocess.check_output((cmd_tshark, *UDX_HEUR,
+                '-r', capture_file('udx_multi.pcap.gz'),
+                '-o', 'conv.machine_readable:TRUE',
+                '-q', '-z', 'endpoints,udx',
+            ), encoding='utf-8', env=test_env)
+        rows = [l.split() for l in stdout.splitlines() if l.startswith('10.0.0.')]
+        assert [(r[0], int(r[1]), int(r[2])) for r in rows] == [
+            ('10.0.0.1', 381, 227184),
+            ('10.0.0.2', 381, 227184),
+        ]
+        # Sent one way is received the other.
+        assert (int(rows[0][3]), int(rows[0][4])) == (int(rows[1][5]), int(rows[1][6]))
+
+    def test_udx_conversations_follow_analysis_preference(self, cmd_tshark, capture_file, test_env):
+        '''The tables carry the stream index, so they need sequence analysis.
+
+        With the preference off the dissector assigns no stream number, the same
+        condition under which udx.stream is absent from the tree.
+        '''
+        stdout = subprocess.check_output((cmd_tshark, *UDX_HEUR,
+                '-r', capture_file('udx_multi.pcap.gz'),
+                '-oudx.analyze_sequence_numbers:FALSE',
+                '-q', '-z', 'conv,udx',
+            ), encoding='utf-8', env=test_env)
+        assert len([l for l in stdout.splitlines() if '<->' in l]) == 0
+
+
+class TestDissectGsmtapUm:
+    def test_gsmtap_um_encap(self, cmd_tshark, capture_file, test_env):
+        '''A LINKTYPE_GSMTAP_UM (217) capture opens and every frame reaches
+        the GSMTAP dissector.'''
+        stdout = subprocess.check_output((cmd_tshark,
+                '-r', capture_file('gsmtap_um_lte.pcap'),
+                '-Tfields', '-egsmtap.type',
+            ), encoding='utf-8', env=test_env)
+        assert stdout.strip().split() == ['15', '13', '15', '15', '15', '18']
+
+    def test_gsmtap_lte_mac_framed_rar(self, cmd_tshark, capture_file, test_env):
+        '''A GSMTAP LTE MAC framed payload reaches mac-lte: RAR fields decode.'''
+        stdout = subprocess.check_output((cmd_tshark,
+                '-r', capture_file('gsmtap_um_lte.pcap'),
+                '-Y', 'mac-lte.rar',
+                '-Tfields', '-emac-lte.rar.rapid', '-emac-lte.rar.ta',
+                '-emac-lte.rar.temporary-crnti',
+            ), encoding='utf-8', env=test_env)
+        assert stdout.strip() == '0x06\t0\t70'
+
+    def test_gsmtap_lte_mac_framed_rrc_chain(self, cmd_tshark, capture_file, test_env):
+        '''MAC framed payloads chain through mac-lte into the RRC dissector
+        (frames 1, 4 and 5); frame 2 is a plain GSMTAP LTE RRC packet.'''
+        stdout = subprocess.check_output((cmd_tshark,
+                '-r', capture_file('gsmtap_um_lte.pcap'),
+                '-Y', 'lte_rrc',
+                '-Tfields', '-eframe.number',
+            ), encoding='utf-8', env=test_env)
+        assert stdout.strip().split() == ['1', '2', '4', '5']

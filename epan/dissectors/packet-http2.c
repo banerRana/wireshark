@@ -2882,16 +2882,16 @@ try_init_stream_with_fake_headers(tvbuff_t* tvb, packet_info* pinfo, http2_sessi
 }
 
 static void
-dissect_http2_add_assoc_imsi_to_tracked_3gpp_session(tvbuff_t *tvb, proto_tree *http2_tree, http2_stream_info_t *stream_info) {
+dissect_http2_add_assoc_imsi_to_tracked_3gpp_session(tvbuff_t *tvb, packet_info *pinfo, proto_tree *http2_tree, http2_stream_info_t *stream_info) {
     /* Add Associate IMSI */
     if (http2_3gpp_session) {
         char *imsi = NULL;
         if(stream_info->imsi && (strcmp(stream_info->imsi, "") != 0)) {
-            add_assoc_imsi_item(tvb, http2_tree, stream_info->imsi);
+            add_assoc_imsi_item(tvb, pinfo, http2_tree, stream_info->imsi);
         } else if (stream_info->referenceid && (strcmp(stream_info->referenceid, "") != 0) && (imsi = http2_get_imsi_from_location(stream_info->referenceid))) {
-            add_assoc_imsi_item(tvb, http2_tree, imsi);
+            add_assoc_imsi_item(tvb, pinfo, http2_tree, imsi);
         } else if (stream_info->path && (strcmp(stream_info->path, "") != 0) && (imsi = http2_get_imsi_from_notifyuri(stream_info->path))) {
-            add_assoc_imsi_item(tvb, http2_tree, imsi);
+            add_assoc_imsi_item(tvb, pinfo, http2_tree, imsi);
         }
     }
 }
@@ -3289,7 +3289,8 @@ dissect_body_data(proto_tree *tree, packet_info *pinfo, http2_session_t* h2sessi
                     boundary_len = boundary_len - 2; /* ignore ending CRLF*/
                     /* We have a potential boundary string */
                     const char *boundary = (char*)tvb_get_string_enc(pinfo->pool, data_tvb, 2, boundary_len, ENC_ASCII | ENC_NA);
-                    if (tvb_strneql(data_tvb, (length - 4) - boundary_len, boundary, boundary_len) == 0) {
+                    /* Check for cases where close-delimiter is followed by CRLF or not */
+                    if ((tvb_strneql(data_tvb, (length - 4) - boundary_len, boundary, boundary_len) == 0) || (tvb_strneql(data_tvb, (length - 2) - boundary_len, boundary, boundary_len) == 0)) {
                         /* We have multipart/mixed */
                         /* Populate the content type so we can dissect the body later */
                         body_info->content_type = wmem_strndup(wmem_file_scope(), "multipart/mixed", 15);
@@ -4288,7 +4289,7 @@ dissect_http2_push_promise(tvbuff_t *tvb, packet_info *pinfo _U_, http2_session_
     }
 
     /* Add Associate IMSI */
-    dissect_http2_add_assoc_imsi_to_tracked_3gpp_session(tvb, http2_tree, stream_info);
+    dissect_http2_add_assoc_imsi_to_tracked_3gpp_session(tvb, pinfo, http2_tree, stream_info);
 #endif
 
     offset += headlen;
@@ -4664,7 +4665,7 @@ dissect_http2_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* dat
     http2_stream_info_t *stream_info = get_stream_info_for_id(pinfo, http2_session, false, streamid);
 
     /* Add Associate IMSI */
-    dissect_http2_add_assoc_imsi_to_tracked_3gpp_session(tvb, http2_tree, stream_info);
+    dissect_http2_add_assoc_imsi_to_tracked_3gpp_session(tvb, pinfo, http2_tree, stream_info);
 #endif
 
     tap_queue_packet(http2_tap, pinfo, http2_stats);

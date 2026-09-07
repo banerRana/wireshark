@@ -1099,6 +1099,8 @@ typedef struct
 
 #define LBMR_LBMR_OPT_SRC_ID_TYPE 0x81
 #define LBMR_LBMR_OPT_SRC_ID_FLAG_IGNORE 0x8000
+#define LBMR_LBMR_OPT_SRC_ID_FLAG_SECURE 0x4000
+#define LBMR_LBMR_OPT_SRC_ID_FLAG_COMPRESSION 0x2000
 
 /* LBMR packet option source type header */
 typedef struct
@@ -1145,7 +1147,7 @@ typedef struct
 #define L_LBMR_LBMR_OPT_VERSION_T (int) sizeof(lbmr_lbmr_opt_version_t)
 
 #define LBMR_LBMR_OPT_VERSION_TYPE 0x83
-#define LBMR_LBMR_OPT_VERSIION_SZ 8
+#define LBMR_LBMR_OPT_VERSION_SZ 8
 #define LBMR_LBMR_OPT_VERSION_FLAG_IGNORE 0x8000
 #define LBMR_LBMR_OPT_VERSION_FLAG_UME    0x0001
 #define LBMR_LBMR_OPT_VERSION_FLAG_UMQ    0x0002
@@ -1171,6 +1173,7 @@ typedef struct
 #define LBMR_LBMR_OPT_LOCAL_DOMAIN_TYPE 0x84
 #define LBMR_LBMR_OPT_LOCAL_DOMAIN_SZ 8
 #define LBMR_LBMR_OPT_LOCAL_DOMAIN_FLAG_IGNORE 0x8000
+#define LBMR_LBMR_OPT_LOCAL_DOMAIN_FLAG_VIRAL 0x0001
 
 /* LBMR (extended) proxy source election record */
 typedef struct
@@ -2458,6 +2461,8 @@ static int hf_lbmr_opt_src_id_type;
 static int hf_lbmr_opt_src_id_len;
 static int hf_lbmr_opt_src_id_flags;
 static int hf_lbmr_opt_src_id_flags_ignore;
+static int hf_lbmr_opt_src_id_flags_secure;
+static int hf_lbmr_opt_src_id_flags_compression;
 static int hf_lbmr_opt_src_id_src_id;
 static int hf_lbmr_opt_src_type;
 static int hf_lbmr_opt_src_type_type;
@@ -3434,17 +3439,19 @@ static int dissect_lbmr_tmr(tvbuff_t * tvb, int offset, packet_info * pinfo, pro
         &hf_lbmr_tmr_flags_wildcard_regex,
         NULL
     };
+    tvbuff_t* tmr_tvb;
     uint16_t tmr_len;
     uint8_t tmr_type;
     uint8_t tmr_flags;
     const char * info_string = "";
 
     tmr_len = tvb_get_ntohs(tvb, offset + O_LBMR_TMR_T_LEN);
-    tmr_type = tvb_get_uint8(tvb, offset + O_LBMR_TMR_T_TYPE);
-    tmr_flags = tvb_get_uint8(tvb, offset + O_LBMR_TMR_T_FLAGS);
-    name_offset = offset + L_LBMR_TMR_T;
+    tmr_tvb = tvb_new_subset_length(tvb, offset + O_LBMR_TMR_T_LEN, tmr_len);
+    tmr_type = tvb_get_uint8(tmr_tvb, O_LBMR_TMR_T_TYPE);
+    tmr_flags = tvb_get_uint8(tmr_tvb, O_LBMR_TMR_T_FLAGS);
+    name_offset = L_LBMR_TMR_T;
 
-    name = (char*)tvb_get_stringz_enc(pinfo->pool, tvb, name_offset, &namelen, ENC_ASCII);
+    name = (char*)tvb_get_stringz_enc(pinfo->pool, tmr_tvb, name_offset, &namelen, ENC_ASCII);
 
     switch (tmr_type)
     {
@@ -3462,13 +3469,13 @@ static int dissect_lbmr_tmr(tvbuff_t * tvb, int offset, packet_info * pinfo, pro
             }
             break;
     }
-    ti = proto_tree_add_none_format(tree, hf_lbmr_tmr, tvb, offset, tmr_len, "%s: %s%s, Length %" PRIu16,
+    ti = proto_tree_add_none_format(tree, hf_lbmr_tmr, tmr_tvb, 0, tmr_len, "%s: %s%s, Length %" PRIu16,
         name, val_to_str(pinfo->pool, tmr_type, lbmr_tmr_type, "Unknown (0x%02x)"), info_string, tmr_len);
     tinfo_tree = proto_item_add_subtree(ti, ett_lbmr_tmr);
-    proto_tree_add_item(tinfo_tree, hf_lbmr_tmr_len, tvb, offset + O_LBMR_TMR_T_LEN, L_LBMR_TMR_T_LEN, ENC_BIG_ENDIAN);
-    proto_tree_add_item(tinfo_tree, hf_lbmr_tmr_type, tvb, offset + O_LBMR_TMR_T_TYPE, L_LBMR_TMR_T_TYPE, ENC_BIG_ENDIAN);
-    proto_tree_add_bitmask(tinfo_tree, tvb, offset + O_LBMR_TMR_T_FLAGS, hf_lbmr_tmr_flags, ett_lbmr_tmr_flags, flags, ENC_BIG_ENDIAN);
-    proto_tree_add_item(tinfo_tree, hf_lbmr_tmr_name, tvb, name_offset, namelen, ENC_ASCII);
+    proto_tree_add_item(tinfo_tree, hf_lbmr_tmr_len, tmr_tvb, O_LBMR_TMR_T_LEN, L_LBMR_TMR_T_LEN, ENC_BIG_ENDIAN);
+    proto_tree_add_item(tinfo_tree, hf_lbmr_tmr_type, tmr_tvb, O_LBMR_TMR_T_TYPE, L_LBMR_TMR_T_TYPE, ENC_BIG_ENDIAN);
+    proto_tree_add_bitmask(tinfo_tree, tmr_tvb, O_LBMR_TMR_T_FLAGS, hf_lbmr_tmr_flags, ett_lbmr_tmr_flags, flags, ENC_BIG_ENDIAN);
+    proto_tree_add_item(tinfo_tree, hf_lbmr_tmr_name, tmr_tvb, name_offset, namelen, ENC_ASCII);
     return ((int) tmr_len);
 }
 
@@ -4888,6 +4895,8 @@ static int dissect_lbmr_opt_src_id(tvbuff_t * tvb, int offset, packet_info * pin
     static int * const flags[] =
     {
         &hf_lbmr_opt_src_id_flags_ignore,
+        &hf_lbmr_opt_src_id_flags_secure,
+        &hf_lbmr_opt_src_id_flags_compression,
         NULL
     };
 
@@ -5119,7 +5128,7 @@ static int dissect_lbmr(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree, 
 {
     proto_tree * lbmr_tree = NULL;
     proto_item * ti = NULL;
-    int offset = 0;
+    unsigned offset = 0;
     uint8_t ver_type;
     uint8_t ver;
     uint8_t type;
@@ -6001,6 +6010,10 @@ void proto_register_lbmr(void)
             { "Flags", "lbmr.opt.src_id.flags", FT_UINT16, BASE_HEX, NULL, 0x0, NULL, HFILL } },
         { &hf_lbmr_opt_src_id_flags_ignore,
             { "Ignore", "lbmr.opt.src_id.flags.ignore", FT_BOOLEAN, L_LBMR_LBMR_OPT_SRC_ID_T_FLAGS * 8, TFS(&lbm_ignore_flag), LBMR_LBMR_OPT_SRC_ID_FLAG_IGNORE, NULL, HFILL } },
+        { &hf_lbmr_opt_src_id_flags_secure,
+            { "Secure", "lbmr.opt.src_id.flags.secure", FT_BOOLEAN, L_LBMR_LBMR_OPT_SRC_ID_T_FLAGS * 8, TFS(&tfs_set_notset), LBMR_LBMR_OPT_SRC_ID_FLAG_SECURE, "Set if source uses secure transport", HFILL } },
+        { &hf_lbmr_opt_src_id_flags_compression,
+            { "Compression", "lbmr.opt.src_id.flags.compression", FT_BOOLEAN, L_LBMR_LBMR_OPT_SRC_ID_T_FLAGS * 8, TFS(&tfs_set_notset), LBMR_LBMR_OPT_SRC_ID_FLAG_COMPRESSION, "Set if source uses compression", HFILL } },
         { &hf_lbmr_opt_src_id_src_id,
             { "Source ID", "lbmr.opt.src_id.src_id", FT_BYTES, BASE_NONE, NULL, 0x0, NULL, HFILL } },
         { &hf_lbmr_opt_src_type,

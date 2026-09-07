@@ -28,6 +28,7 @@
 #include <ui/qt/utils/color_utils.h>
 #include <ui/qt/capture_file.h>
 #include <ui/qt/widgets/clickable_label.h>
+#include <ui/recent.h>
 
 #include <QAction>
 #include <QActionGroup>
@@ -116,6 +117,11 @@ MainStatusBar::MainStatusBar(QWidget *parent) :
             "  margin: 0px;"
             "}";
 
+    QString label_ss =
+            "QLabel {"
+            "  margin-left: 0.5em;"
+            "}";
+
     expert_button_ = new QToolButton(this);
     expert_button_->setIconSize(QSize(icon_size, icon_size));
     expert_button_->setStyleSheet(button_ss);
@@ -151,8 +157,10 @@ MainStatusBar::MainStatusBar(QWidget *parent) :
     info_progress_hb->addWidget(&progress_frame_);
     info_progress_hb->addStretch(10);
 
+    // LabelStack does setStyleSheet for QLabel but ClickableLabel does not
     packet_status_.setAccessibleName(tr("Packet statistics"));
     packet_status_.setAccessibleDescription(tr("Shows the number of captured, displayed, and selected packets."));
+    profile_status_.setStyleSheet(label_ss);
     profile_status_.setAccessibleName(tr("Configuration profile"));
     profile_status_.setAccessibleDescription(tr("Displays the current configuration profile and allows switching between profiles."));
 
@@ -176,8 +184,8 @@ MainStatusBar::MainStatusBar(QWidget *parent) :
     progress_frame_.enableTaskbarUpdates(true);
 #endif
 
-    connect(mainApp, &MainApplication::appInitialized, splitter, &QSplitter::show);
-    connect(mainApp, &MainApplication::appInitialized, this, &MainStatusBar::appInitialized);
+    mainApp->whenInitialized(splitter, [splitter]() { splitter->show(); });
+    mainApp->whenInitialized(this, [this]() { appInitialized(); });
     connect(&info_status_, &LabelStack::toggleTemporaryFlash, this, &MainStatusBar::toggleBackground);
     connect(mainApp, &MainApplication::profileNameChanged, this, &MainStatusBar::setProfileName);
     connect(&profile_status_, &ClickableLabel::clickedAt, this, &MainStatusBar::showProfileMenu);
@@ -198,6 +206,9 @@ void MainStatusBar::showExpert() {
 void MainStatusBar::captureFileClosing() {
     expert_button_->hide();
     progress_frame_.captureFileClosing();
+    field_status_supplement_.clear();
+    field_status_include_base_ = true;
+    field_status_base_.clear();
     popGenericStatus(STATUS_CTX_FIELD);
 }
 
@@ -280,12 +291,34 @@ void MainStatusBar::setStatusbarForCaptureFile()
     }
 }
 
+void MainStatusBar::setFieldStatusSupplement(const QString &supplement, bool include_selected_field)
+{
+    field_status_supplement_ = supplement;
+    field_status_include_base_ = include_selected_field;
+    refreshFieldStatus();
+}
+
+void MainStatusBar::refreshFieldStatus()
+{
+    QString display;
+    if (!field_status_supplement_.isEmpty()) {
+        display = field_status_supplement_;
+        if (field_status_include_base_ && !field_status_base_.isEmpty()) {
+            display += QLatin1Char(' ') + field_status_base_;
+        }
+    } else {
+        display = field_status_base_;
+    }
+    pushGenericStatus(STATUS_CTX_FIELD, display);
+}
+
 void MainStatusBar::selectedFieldChanged(FieldInformation * finfo)
 {
     QString item_info;
 
     if (! finfo) {
-        pushGenericStatus(STATUS_CTX_FIELD, item_info);
+        field_status_base_.clear();
+        refreshFieldStatus();
         return;
     }
 
@@ -316,7 +349,8 @@ void MainStatusBar::selectedFieldChanged(FieldInformation * finfo)
         }
     }
 
-    pushGenericStatus(STATUS_CTX_FIELD, item_info);
+    field_status_base_ = item_info;
+    refreshFieldStatus();
 }
 
 void MainStatusBar::highlightedFieldChanged(FieldInformation * finfo)
@@ -410,6 +444,11 @@ void MainStatusBar::showCaptureStatistics()
                                        .arg(UTF8_MIDDLE_DOT)
                                        .arg(cap_file_->displayed_count)
                                        .arg((100.0*cap_file_->displayed_count)/cs_count_, 0, 'f', 1));
+            }
+            if (recent.aggregation_view) {
+                packets_str.append(tr(" %1 Aggregated: %2")
+                    .arg(UTF8_MIDDLE_DOT)
+                    .arg(cap_file_->aggregation_count));
             }
             if (rows.count() > 1) {
                 packets_str.append(tr(" %1 Selected: %2 (%3%)")

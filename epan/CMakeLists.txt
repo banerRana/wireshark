@@ -54,6 +54,7 @@ set(LIBWIRESHARK_PUBLIC_HEADERS
 	crc32-tvb.h
 	crc6-tvb.h
 	crc8-tvb.h
+	credentials.h
 	decode_as.h
 	disabled_protos.h
 	conversation_filter.h
@@ -82,6 +83,7 @@ set(LIBWIRESHARK_PUBLIC_HEADERS
 	introspection.h
 	iana-info.h
 	ip_opts.h
+	keytab_krb5_ctx.h
 	maxmind_db.h
 	media_params.h
 	next_tvb.h
@@ -278,7 +280,7 @@ add_library(epan
 set_target_properties(epan PROPERTIES
 	COMPILE_DEFINITIONS "WS_BUILD_DLL"
 	LINK_FLAGS "${WS_LINK_FLAGS}"
-	VERSION "0.0.0" SOVERSION 0
+	VERSION "0.0.${PROJECT_PATCH_VERSION}" SOVERSION 0
 	INSTALL_RPATH "${LIBRARY_INSTALL_RPATH}"
 	# By default the name for a library with target name epan will be libepan,
 	# but Ethereal is now named Wireshark
@@ -304,14 +306,14 @@ target_link_libraries(epan
 		${GNUTLS_LIBRARIES}
 		${KERBEROS_LIBRARIES}
 		${LUA_LIBRARIES}
-		${LZ4_LIBRARIES}
+		$<TARGET_NAME_IF_EXISTS:LZ4::LZ4>
 		${M_LIBRARIES}
 		${NGHTTP2_LIBRARIES}
 		${NGHTTP3_LIBRARIES}
 		${SMI_LIBRARIES}
 		${SNAPPY_LIBRARIES}
-		${WIN_WS2_32_LIBRARY}
-		${XXHASH_LIBRARIES}
+		${SOCKET_LIBRARY}
+		$<TARGET_NAME_IF_EXISTS:XXHASH::XXHASH>
 		${ZLIB_LIBRARIES}
 		${ZLIBNG_LIBRARIES}
 		${ZSTD_LIBRARIES}
@@ -333,7 +335,6 @@ target_include_directories(epan
 		${GLIB2_INCLUDE_DIRS}
 		${GNUTLS_INCLUDE_DIRS}
 		${LUA_INCLUDE_DIRS}
-		${LZ4_INCLUDE_DIRS}
 		${NGHTTP2_INCLUDE_DIRS}
 		${NGHTTP3_INCLUDE_DIRS}
 		${SMI_INCLUDE_DIRS}

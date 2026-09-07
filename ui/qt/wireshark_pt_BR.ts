@@ -2,14 +2,6 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="pt_BR">
 <context>
-    <name>Abbreviation</name>
-    <message>
-        <source></source>
-        <comment>for &quot;not applicable&quot;</comment>
-        <translation></translation>
-    </message>
-</context>
-<context>
     <name>AboutDialog</name>
     <message>
         <source>About Wireshark</source>
@@ -148,6 +140,29 @@
     <message>
         <source>Value</source>
         <translation>Valor</translation>
+    </message>
+</context>
+<context>
+    <name>AnnotationEditDialog</name>
+    <message>
+        <source>Color:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Comment (max %1 characters)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Comment:</source>
+        <translation type="unfinished">Comentário:</translation>
+    </message>
+    <message>
+        <source>Select Annotation Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Annotations are session-only and will be lost when the capture is closed.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -705,6 +720,74 @@
     </message>
 </context>
 <context>
+    <name>BreakpointConditionDelegate</name>
+    <message>
+        <source>Expression</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lua expression — pause when truthy</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Evaluated each time control reaches this line; locals, upvalues, and globals are visible like Watch / Evaluate.
+Runtime errors are treated as false (silent) and surface as a warning icon on the row.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hit Count</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pause after N hits (0 disables)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Gate the pause on a hit counter. The dropdown next to N picks the comparison mode: from pauses on every hit from N onwards (default); every pauses on hits N, 2N, 3N, …; once pauses on the N-th hit and deactivates the breakpoint. Use 0 to disable the gate. The counter is preserved across edits to Expression / Hit Count / Log Message; lowering the target below the current count rolls the counter back to 0 so the breakpoint can wait for the next N hits. Right-click the row to reset it explicitly. Combined with an Expression on the same row, the hit-count gate runs first.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Log Message</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Log message — supports {expr} and tags such as {filename}, {basename}, {line}, {function}, {hits}, {timestamp}, {delta}…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Logpoints write a message to the Evaluate output (and Wireshark&apos;s info log) each time the line is reached. By default execution continues without pausing; tick the Pause box on this editor to also pause after emitting (useful for log-then-inspect without duplicating the breakpoint). The line is emitted verbatim — there is no automatic file:line prefix. Inside {} the text is evaluated as a Lua expression in this frame and converted to text the same way tostring() does; reserved tags below shadow any same-named Lua local / upvalue / global. Origin: {filename}, {basename}, {line}, {function}, {what}. Counters and scope: {hits}, {depth}, {thread}. Time: {timestamp}, {datetime}, {epoch}, {epoch_ms}, {elapsed}, {delta}. Use {{ and }} for literal { and }. Per-placeholder errors substitute &apos;&lt;error: ...&gt;&apos; without aborting the line.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>from</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>every</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>once</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Comparison mode for the hit count:
+from — pause on every hit from N onwards.
+every — pause on hits N, 2N, 3N…
+once — pause once on the N-th hit and deactivate the breakpoint.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pause</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pause: format and emit the log message AND pause execution.
+Off = logpoint only (matches the historical &quot;logpoints never pause&quot; convention).</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>CaptureCardWidget</name>
     <message>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Capture live packets from your network.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
@@ -751,8 +834,23 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>%1 / %2 interfaces</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 / %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>All interfaces shown</source>
         <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>%n interface(s)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
     </message>
     <message numerus="yes">
         <source>%n interface(s) shown, %1 hidden</source>
@@ -1205,50 +1303,39 @@
     </message>
 </context>
 <context>
-    <name>CaptureFilterCombo</name>
-    <message>
-        <source>Capture filter selector</source>
-        <translation>Seletor de filtro de captura</translation>
-    </message>
-</context>
-<context>
-    <name>CaptureFilterEdit</name>
+    <name>CaptureFilterEntry</name>
     <message>
         <source>Capture filter entry</source>
-        <translation>Entrada de filtro de captura</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Manage saved bookmarks.</source>
-        <translation>Gerenciar favoritos.</translation>
+        <source>Saved Capture Filters</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Apply this filter string to the display.</source>
-        <translation>Aplicar este filtro de exibição.</translation>
+        <source>Save this filter</source>
+        <translation type="unfinished">Salvar este filtro</translation>
+    </message>
+    <message>
+        <source>Remove this filter</source>
+        <translation type="unfinished">Excluir este filtro</translation>
+    </message>
+    <message>
+        <source>Manage Capture Filters</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Multiple filters selected. Override them here or leave this blank to preserve them.</source>
         <extracomment>This is a very long concept that needs to fit into a short space.</extracomment>
-        <translation>Vários filtros selecionados. Substitua-os aqui ou deixe em branco para preservá-los.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>&lt;p&gt;The interfaces you have selected have different capture filters. Typing a filter here will override them. Doing nothing will preserve them.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;As interfaces que você selecionou têm diferentes filtros de captura. Digitar um filtro aqui os substituirá. Se você não fizer nada, eles serão preservados.&lt;/p&gt;</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Enter a capture filter %1</source>
-        <translation>Insira um filtro de captura %1</translation>
-    </message>
-    <message>
-        <source>Save this filter</source>
-        <translation>Salvar este filtro</translation>
-    </message>
-    <message>
-        <source>Remove this filter</source>
-        <translation>Remover este filtro</translation>
-    </message>
-    <message>
-        <source>Manage Capture Filters</source>
-        <translation>Gerenciar Filtros de Captura</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1259,6 +1346,25 @@
     </message>
     <message>
         <source>Unable to check capture filter (BPF extensions require a live handle)</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>CaptureFilterValidator</name>
+    <message>
+        <source>No interfaces selected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unable to check capture filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unable to check capture filter (BPF extensions require a live handle)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Syntax checking unavailable</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -1714,26 +1820,6 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
     <message>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The interval between new packet updates. Affects how often the GUI updates and the granularity of timers.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;O intervalo entre novas atualizações de pacotes. Afeta a frequência com que a GUI é atualizada e a granularidade dos cronômetros.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
-    </message>
-    <message>
-        <source>Enable Aggregation View for real-time capturing</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>This option can only be changed when Aggregation Mode is not active.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Aggregation fields</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Fiedls used for aggregation.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Edit..</source>
-        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Don&apos;t load interfaces on startup</source>
@@ -2315,6 +2401,81 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
         <source>Displays the raw data of the selected event.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Packet annotations are not saved and will be lost when the capture is closed.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Packet Annotations</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select one or more bytes first.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add Annotation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No annotation found at the selection.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit Annotation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Start byte set: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Set start byte first.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Start byte (absolute): %1
+End byte (absolute): %2
+Distance (absolute, bytes): %3
+Distance (signed, bytes): %4</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>selected protocol</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>selected field</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>parent protocol</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>
+Reference range (%1): start %2, length %3</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>
+Start byte (relative to reference): %1
+End byte (relative to reference): %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>
+Relative to reference: n/a (outside reference range)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Compute Offset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Offset markers cleared.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>DecodeAsDialog</name>
@@ -2407,14 +2568,256 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
     </message>
 </context>
 <context>
-    <name>DisplayFilterCombo</name>
+    <name>DisAudioStream</name>
     <message>
-        <source>Display filter selector</source>
-        <translation>Seletor de filtro de exibição</translation>
+        <source>No DIS signal payload is available for playback.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Select from previously used filters.</source>
-        <translation>Selecionar de filtros usados anteriormente.</translation>
+        <source>Unable to decode DIS audio payload for this stream.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Audio format is not supported by the current output device.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unable to open playback buffer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>DisStreamAnalysisDialog</name>
+    <message>
+        <source>DIS Stream Analysis</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stream</source>
+        <translation type="unfinished">Fluxo</translation>
+    </message>
+    <message>
+        <source>Codec</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Duration (s)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Packets</source>
+        <translation type="unfinished">Pacotes</translation>
+    </message>
+    <message>
+        <source>Signal Packets</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Transmitter Packets</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Estimated Lost</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Jitter (mean/max ms)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delta (mean/max ms)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Capture Time (s)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Amplitude</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>0.000 / 0.000 s</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Playback</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Packet</source>
+        <translation type="unfinished">Pacote</translation>
+    </message>
+    <message>
+        <source>Time (s)</source>
+        <translation type="unfinished">Tempo (s)</translation>
+    </message>
+    <message>
+        <source>Delta (ms)</source>
+        <translation type="unfinished">Delta (ms)</translation>
+    </message>
+    <message>
+        <source>Jitter (ms)</source>
+        <translation type="unfinished">Jitter (ms)</translation>
+    </message>
+    <message>
+        <source>Lost</source>
+        <translation type="unfinished">Perdido</translation>
+    </message>
+    <message>
+        <source>Status</source>
+        <translation type="unfinished">Status</translation>
+    </message>
+    <message>
+        <source>Go To First Packet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Play</source>
+        <translation type="unfinished">Reproduzir</translation>
+    </message>
+    <message>
+        <source>Stop</source>
+        <translation type="unfinished">Parar</translation>
+    </message>
+    <message>
+        <source>-</source>
+        <translation type="unfinished">-</translation>
+    </message>
+    <message>
+        <source>Unknown</source>
+        <translation type="unfinished">Desconhecido</translation>
+    </message>
+    <message>
+        <source>Problem</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>OK</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Waveform</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Jitter Spikes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Estimated Loss</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Problem Packets</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pause</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Double click on graph to set start of playback.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Start: %1 s. Double click on graph to set start of playback.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>DIS Playback</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>DisStreamDialog</name>
+    <message>
+        <source>DIS Streams</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Start</source>
+        <translation type="unfinished">Iniciar</translation>
+    </message>
+    <message>
+        <source>End</source>
+        <translation type="unfinished">Fim</translation>
+    </message>
+    <message>
+        <source>Src Address</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Src Port</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Dst Address</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Dst Port</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Radio</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Entity</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Signal</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tx</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lost</source>
+        <translation type="unfinished">Perdido</translation>
+    </message>
+    <message>
+        <source>Max Delta (ms)</source>
+        <translation type="unfinished">Delta Máx (ms)</translation>
+    </message>
+    <message>
+        <source>Mean Jitter (ms)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Max Jitter (ms)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pb</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Prepare Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Play</source>
+        <translation type="unfinished">Reproduzir</translation>
+    </message>
+    <message>
+        <source>Stop</source>
+        <translation type="unfinished">Parar</translation>
+    </message>
+    <message>
+        <source>Analyze</source>
+        <translation type="unfinished">Analizar</translation>
+    </message>
+    <message>
+        <source>X</source>
+        <translation type="unfinished">X</translation>
+    </message>
+    <message>
+        <source>DIS Playback</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2483,6 +2886,45 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
         <source>Filter Button Preferences…</source>
         <oldsource>Filter Button Preferences...</oldsource>
         <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>DisplayFilterEntry</name>
+    <message>
+        <source>Display filter entry</source>
+        <translation type="unfinished">Entrada de filtro de exibição</translation>
+    </message>
+    <message>
+        <source>Saved Display Filters</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save this filter</source>
+        <translation type="unfinished">Salvar este filtro</translation>
+    </message>
+    <message>
+        <source>Remove this filter</source>
+        <translation type="unfinished">Excluir este filtro</translation>
+    </message>
+    <message>
+        <source>Manage Display Filters</source>
+        <translation type="unfinished">Gerenciar Filtros de Exibição</translation>
+    </message>
+    <message>
+        <source>Filter Button Preferences…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Apply a display filter %1 &lt;%2/&gt;</source>
+        <translation type="unfinished">Aplicar um filtro de exibição %1 &lt;%2/&gt;</translation>
+    </message>
+    <message>
+        <source>Display Filter Expression…</source>
+        <translation type="unfinished">Expressão de Filtro de Exibição…</translation>
+    </message>
+    <message>
+        <source>Left align buttons</source>
+        <translation type="unfinished">Alinhar botões à esquerda</translation>
     </message>
 </context>
 <context>
@@ -2581,6 +3023,13 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
     </message>
 </context>
 <context>
+    <name>DisplayFilterValidator</name>
+    <message>
+        <source>&quot;%1&quot; is deprecated in favour of &quot;%2&quot;. See Help section 6.4.8 for details.</source>
+        <translation type="unfinished">&quot;%1&quot; está obsoleto em favor de &quot;%2&quot;. Consulte a seção de Ajuda 6.4.8 para obter detalhes.</translation>
+    </message>
+</context>
+<context>
     <name>DissectorSyntaxLineEdit</name>
     <message>
         <source>Dissector entry</source>
@@ -2604,6 +3053,18 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
     <message>
         <source>Dissector Tables</source>
         <translation>Tabelas de Dissecadores</translation>
+    </message>
+    <message>
+        <source>Everywhere</source>
+        <translation type="unfinished">Em qualquer lugar</translation>
+    </message>
+    <message>
+        <source>Only Name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Only Description</source>
+        <translation type="unfinished">Apenas Descrição</translation>
     </message>
 </context>
 <context>
@@ -2639,6 +3100,29 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
     <message>
         <source>Selector Name</source>
         <translation>Nome do seletor</translation>
+    </message>
+</context>
+<context>
+    <name>DistributionDialog</name>
+    <message>
+        <source>Field Values Distribution</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Field Value</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Occurrences</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Percent</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Distribution:</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2680,24 +3164,28 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
         <translation>Em qualquer lugar</translation>
     </message>
     <message>
-        <source>Only Protocols</source>
-        <translation>Apenas Protocolos</translation>
+        <source>Only Protocol</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Only Description</source>
         <translation>Apenas Descrição</translation>
     </message>
     <message>
-        <source>Only enabled protocols</source>
-        <translation>Apenas protocolos habilitados</translation>
+        <source>all</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Only disabled protocols</source>
-        <translation>Apenas protocolos desabilitados</translation>
+        <source>enabled</source>
+        <translation type="unfinished">habilitado</translation>
     </message>
     <message>
-        <source>any protocol</source>
-        <translation>qualquer protocolo</translation>
+        <source>disabled</source>
+        <translation type="unfinished">desativado</translation>
+    </message>
+    <message>
+        <source>protocols</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>non-heuristic protocols</source>
@@ -3078,6 +3566,14 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
         <translation>Tipo de conteúdo:</translation>
     </message>
     <message>
+        <source>Unique</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Only display the first of identical entries</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Searching for objects</source>
         <translation>Buscando objetos</translation>
     </message>
@@ -3088,6 +3584,14 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
     <message>
         <source>Only display entries containing this string</source>
         <translation>Exibir apenas entradas que contenham esta string</translation>
+    </message>
+    <message>
+        <source>Save All</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save Displayed</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Preview</source>
@@ -3108,6 +3612,10 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
     <message>
         <source>Save Object As…</source>
         <translation>Salvar Objeto Como…</translation>
+    </message>
+    <message>
+        <source>Save Objects In…</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Save All Objects In…</source>
@@ -3223,6 +3731,14 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
     <message>
         <source>The help for the extcap interface %1 cannot be found. Given file: %2</source>
         <translation>Não foi possível encontrar a ajuda para a interface extcap %1. No arquivo: %2</translation>
+    </message>
+    <message>
+        <source>Bookmark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Type a name to create a bookmark</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Save parameters on capture start</source>
@@ -3373,6 +3889,45 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
     </message>
 </context>
 <context>
+    <name>FilterExpressionEdit</name>
+    <message>
+        <source>Saved Filters</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save this filter</source>
+        <translation type="unfinished">Salvar este filtro</translation>
+    </message>
+    <message>
+        <source>Remove this filter</source>
+        <translation type="unfinished">Excluir este filtro</translation>
+    </message>
+    <message>
+        <source>Manage Saved Filters</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Filter Button Preferences...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Manage saved filters</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clear the filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Apply this filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recent filters</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>FilterExpressionFrame</name>
     <message>
         <source>Frame</source>
@@ -3456,6 +4011,13 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
     <message>
         <source>Filter Expression</source>
         <translation>Expressão de Filtro</translation>
+    </message>
+</context>
+<context>
+    <name>FilterValidator</name>
+    <message>
+        <source>Invalid filter: %1</source>
+        <translation type="unfinished">Filtro inválido: %1</translation>
     </message>
 </context>
 <context>
@@ -3623,6 +4185,14 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
         <translation>Caminho Extcap Global</translation>
     </message>
     <message>
+        <source>Personal Themes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>User-installed theme files (*.jsonc)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>MaxMind DB path</source>
         <translation>Caminho do DB MaxMind</translation>
     </message>
@@ -3669,11 +4239,6 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
 <context>
     <name>FollowStreamDialog</name>
     <message>
-        <source>Filter Out This Stream</source>
-        <oldsource>Hide this stream</oldsource>
-        <translation>Filtrar Este Fluxo</translation>
-    </message>
-    <message>
         <source>Print</source>
         <translation>Imprimir</translation>
     </message>
@@ -3718,6 +4283,14 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
     <message>
         <source>Raw</source>
         <translation>Bruto</translation>
+    </message>
+    <message>
+        <source>Prepare as Filter</source>
+        <translation type="unfinished">Preparar como Filtro</translation>
+    </message>
+    <message>
+        <source>Apply as Filter</source>
+        <translation type="unfinished">Aplicar como Filtro</translation>
     </message>
     <message>
         <source>Save as…</source>
@@ -3885,61 +4458,16 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
         <translation>Selecionar fonte</translation>
     </message>
     <message>
-        <source>Colors:</source>
-        <translation>Cores:</translation>
+        <source>Theme</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>System Default</source>
-        <translation>Sistema padrão</translation>
+        <source>Theme Author Information</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Solid</source>
-        <translation>Sólido</translation>
-    </message>
-    <message>
-        <source>Sample ignored packet text</source>
-        <translation>Texto de pacote ignorado de exemplo</translation>
-    </message>
-    <message>
-        <source>Sample marked packet text</source>
-        <translation>Texto de pacote marcado de exemplo</translation>
-    </message>
-    <message>
-        <source>Sample active selected item</source>
-        <translation>Item selecionado ativo de exemplo</translation>
-    </message>
-    <message>
-        <source>Style:</source>
-        <translation>Estilo:</translation>
-    </message>
-    <message>
-        <source>Gradient</source>
-        <translation>Gradiente</translation>
-    </message>
-    <message>
-        <source>Sample inactive selected item</source>
-        <translation>Item selecionado inativo de exemplo</translation>
-    </message>
-    <message>
-        <source>Sample &quot;Follow Stream&quot; client text</source>
-        <translation>Amostra de texto de &quot;Seguir Fluxo&quot; do cliente</translation>
-    </message>
-    <message>
-        <source>Sample &quot;Follow Stream&quot; server text</source>
-        <translation>Amostra de texto de &quot;Seguir Fluxo&quot; do servidor</translation>
-    </message>
-    <message>
-        <source>Sample valid filter</source>
-        <translation>Filtro válido de exemplo</translation>
-    </message>
-    <message>
-        <source>Sample invalid filter</source>
-        <translation>Filtro inválido de exemplo</translation>
-    </message>
-    <message>
-        <source>Sample warning filter</source>
-        <oldsource>Sample deprecated filter</oldsource>
-        <translation>Filtro de aviso de exemplo</translation>
+        <source>Theme Description</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Example GIF query packets have jumbo window sizes</source>
@@ -3951,16 +4479,28 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
         <translation>Texugos preguiçosos movem pacotes únicos e cerosos de água-viva</translation>
     </message>
     <message>
-        <source>Color Scheme:</source>
-        <translation>Esquema de Cores:</translation>
+        <source>System</source>
+        <translation type="unfinished">Sistema</translation>
     </message>
     <message>
-        <source>Light Mode</source>
-        <translation>Modo Claro</translation>
+        <source>Light</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Dark Mode</source>
-        <translation>Modo Escuro</translation>
+        <source>Dark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Appearance mode:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Theme:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Theme by %1</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Font</source>
@@ -4107,6 +4647,30 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Add annotation…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit annotation…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove annotation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Start byte for offset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>End byte for offset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clear offset markers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Show bytes as hexadecimal</source>
         <translation type="unfinished"></translation>
     </message>
@@ -4136,6 +4700,10 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
     </message>
     <message>
         <source>…as EBCDIC</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Comment: %1</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -4376,7 +4944,7 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
     </message>
     <message>
         <source>Move Left 100 Pixels</source>
-        <translation type="unfinished">Mover 10 Pixels para a Esquerda {100 ?}</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Alt+Left</source>
@@ -4384,7 +4952,7 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
     </message>
     <message>
         <source>Move Right 100 Pixels</source>
-        <translation type="unfinished">Mover 10 Pixels para a Direita {100 ?}</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Alt+Right</source>
@@ -4392,7 +4960,7 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
     </message>
     <message>
         <source>Move Down 100 Pixels</source>
-        <translation type="unfinished">Mover 10 Pixels para Baixo {100 ?}</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Alt+Down</source>
@@ -5340,6 +5908,92 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
     </message>
 </context>
 <context>
+    <name>ImsiListDialog</name>
+    <message>
+        <source>IMSI List</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;small&gt;Select one or more IMSIs to view flow sequence or prepare a display filter.&lt;/small&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Only show IMSIs matching the current display filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Limit to display filter</source>
+        <translation type="unfinished">Limitar ao filtro de exibição</translation>
+    </message>
+    <message>
+        <source>IMSI</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Packets</source>
+        <translation type="unfinished">Pacotes</translation>
+    </message>
+    <message>
+        <source>First Frame</source>
+        <translation type="unfinished">Primeiro quadro</translation>
+    </message>
+    <message>
+        <source>Last Frame</source>
+        <translation type="unfinished">Último quadro</translation>
+    </message>
+    <message>
+        <source>Protocols</source>
+        <translation type="unfinished">Protocolos</translation>
+    </message>
+    <message>
+        <source>Prepare Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Prepare a display filter matching selected IMSIs.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;small&gt;%1 IMSIs found. Double-click to filter.&lt;/small&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>InPacketFindBar</name>
+    <message>
+        <source>String</source>
+        <translation type="unfinished">String</translation>
+    </message>
+    <message>
+        <source>Regular Expression</source>
+        <translation type="unfinished">Expressão regular</translation>
+    </message>
+    <message>
+        <source>Case sensitive</source>
+        <translation type="unfinished">Diferencia MAIÚSCULAS/minúsculas</translation>
+    </message>
+    <message>
+        <source>Find</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="unfinished">Cancelar</translation>
+    </message>
+    <message>
+        <source>invalid pattern</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>no matches</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 of %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>InfoBannerWidget</name>
     <message>
         <source>Tips and announcements</source>
@@ -5456,12 +6110,35 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
         <source>Hide Interface</source>
         <translation>Ocultar Interface</translation>
     </message>
+    <message>
+        <source>Unknown</source>
+        <translation type="unfinished">Desconhecido</translation>
+    </message>
+    <message>
+        <source>Hide all &apos;%1&apos; interfaces</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>InterfaceSortFilterModel</name>
     <message>
         <source>No interfaces to be displayed. %1 interfaces hidden.</source>
         <translation>Nenhuma interface para exibir. %1 interfaces ocultas.</translation>
+    </message>
+</context>
+<context>
+    <name>InterfaceStatsWorker</name>
+    <message>
+        <source>The interface statistics stream stopped unexpectedly.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unable to start the interface statistics stream.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This build has no packet capture support.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -5610,7 +6287,7 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
     </message>
     <message>
         <source>%1 %2</source>
-        <translation type="unfinished">%1 %2</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -6529,23 +7206,23 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
     </message>
     <message>
         <source>75%</source>
-        <translation type="unfinished">75%</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>80%</source>
-        <translation type="unfinished">80%</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>85%</source>
-        <translation type="unfinished">85%</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>90%</source>
-        <translation type="unfinished">90%</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>95%</source>
-        <translation type="unfinished">95%</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Separator style:</source>
@@ -7039,83 +7716,54 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
     </message>
 </context>
 <context>
-    <name>LuaDebuggerDialog</name>
+    <name>LuaDebuggerBreakpointsController</name>
+    <message numerus="yes">
+        <source>Are you sure you want to remove %Ln breakpoint(s)?</source>
+        <translation type="obsolete">
+            <numerusform>Are you sure you want to remove %Ln breakpoint?</numerusform>
+            <numerusform>Are you sure you want to remove %Ln breakpoints?</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
+    <name>LuaDebuggerCodeTabsController</name>
+    <message numerus="yes">
+        <source>There are unsaved changes in %Ln open file(s).</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Save Lua Script</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not write to %1:
+%2</source>
+        <translation type="unfinished"></translation>
+    </message>
     <message>
         <source>Lua Debugger</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Continue</source>
+        <source>Save changes to %1 before closing?</source>
         <translation type="unfinished"></translation>
     </message>
+</context>
+<context>
+    <name>LuaDebuggerCodeView</name>
     <message>
-        <source>F5</source>
+        <source>Click: add or remove breakpoint
+Drag existing breakpoint: move to nearest free visible line
+Shift+click: on an empty line, add a disabled breakpoint;
+on an existing breakpoint, toggle its active state</source>
         <translation type="unfinished"></translation>
     </message>
-    <message>
-        <source>Step Over</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>F10</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Step Into</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>F11</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Step Out</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Shift+F11</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Clear Breakpoints</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Open File</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Save</source>
-        <translation type="unfinished">Salvar</translation>
-    </message>
-    <message>
-        <source>Ctrl+S</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Find…</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Ctrl+F</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Go to Line…</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Ctrl+G</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Reload Lua Plugins</source>
-        <translation type="unfinished">Recarregar Plugins Lua</translation>
-    </message>
-    <message>
-        <source>Ctrl+Shift+L</source>
-        <translation type="unfinished"></translation>
-    </message>
+</context>
+<context>
+    <name>LuaDebuggerDialog</name>
     <message>
         <source>Open Lua Script</source>
         <translation type="unfinished"></translation>
@@ -7141,11 +7789,11 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Reload Lua Plugins (Ctrl+Shift+L)</source>
+        <source>Run to line (%1)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Remove all breakpoints</source>
+        <source>Reload Lua Plugins (Ctrl+Shift+L)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -7165,7 +7813,24 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>&lt;p&gt;&lt;b&gt;Locals&lt;/b&gt;&lt;br/&gt;Parameters and local variables for the selected stack frame.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Upvalues&lt;/b&gt;&lt;br/&gt;Outer variables that this function actually uses from surrounding code. Anything the function does not reference does not appear here.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Globals&lt;/b&gt;&lt;br/&gt;Names from the global environment table.&lt;/p&gt;</source>
+        <source>From: Locals</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>From: Upvalues</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>From: Globals</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>
+… (truncated)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;&lt;b&gt;Locals&lt;/b&gt;&lt;br/&gt;Parameters and local variables for the selected stack frame.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Upvalues&lt;/b&gt;&lt;br/&gt;Outer variables that this function actually uses from surrounding code. Anything the function does not reference does not appear here.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Globals&lt;/b&gt;&lt;br/&gt;Names from the global environment table.&lt;/p&gt;&lt;p&gt;Values that differ from the previous pause are drawn in a &lt;b&gt;bold accent color&lt;/b&gt;, and briefly flash on the pause that introduced the change.&lt;/p&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -7179,6 +7844,10 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
     <message>
         <source>Type</source>
         <translation type="unfinished">Tipo</translation>
+    </message>
+    <message>
+        <source>Watch</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Stack Trace</source>
@@ -7197,6 +7866,10 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>&lt;p&gt;&lt;b&gt;Expression&lt;/b&gt;&lt;br/&gt;Pause only when this Lua expression is truthy in the current frame. Runtime errors count as false and surface a warning icon on the row.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Hit Count&lt;/b&gt;&lt;br/&gt;Gate the pause on a hit counter. The dropdown next to &lt;i&gt;N&lt;/i&gt; picks the comparison mode: &lt;code&gt;from&lt;/code&gt; pauses on every hit from &lt;i&gt;N&lt;/i&gt; onwards (default); &lt;code&gt;every&lt;/code&gt; pauses on hits &lt;i&gt;N&lt;/i&gt;, 2&amp;times;&lt;i&gt;N&lt;/i&gt;, 3&amp;times;&lt;i&gt;N&lt;/i&gt;, &amp;hellip;; &lt;code&gt;once&lt;/code&gt; pauses on the &lt;i&gt;N&lt;/i&gt;-th hit and deactivates the breakpoint. The counter is preserved across edits; right-click the row to reset it.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Log Message&lt;/b&gt;&lt;br/&gt;Write a line to the &lt;i&gt;Evaluate&lt;/i&gt; output (and Wireshark&apos;s debug log) each time the breakpoint fires &amp;mdash; after the &lt;i&gt;Hit Count&lt;/i&gt; gate and any &lt;i&gt;Expression&lt;/i&gt; allow it. By default execution continues; click the pause toggle on the editor row to also pause after emitting. Tags: &lt;code&gt;{expr}&lt;/code&gt; (any Lua value); &lt;code&gt;{filename}&lt;/code&gt;, &lt;code&gt;{basename}&lt;/code&gt;, &lt;code&gt;{line}&lt;/code&gt;, &lt;code&gt;{function}&lt;/code&gt;, &lt;code&gt;{what}&lt;/code&gt;; &lt;code&gt;{hits}&lt;/code&gt;, &lt;code&gt;{depth}&lt;/code&gt;, &lt;code&gt;{thread}&lt;/code&gt;; &lt;code&gt;{timestamp}&lt;/code&gt;, &lt;code&gt;{datetime}&lt;/code&gt;, &lt;code&gt;{epoch}&lt;/code&gt;, &lt;code&gt;{epoch_ms}&lt;/code&gt;, &lt;code&gt;{elapsed}&lt;/code&gt;, &lt;code&gt;{delta}&lt;/code&gt;; &lt;code&gt;{{&lt;/code&gt; / &lt;code&gt;}}&lt;/code&gt; for literal braces.&lt;/p&gt;&lt;p&gt;Edit the &lt;i&gt;Location&lt;/i&gt; cell (double-click, F2, or right-click &amp;rarr; Edit) to attach one of these. A white core inside the breakpoint dot &amp;mdash; in this list and in the gutter &amp;mdash; marks rows that carry extras.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Active</source>
         <translation type="unfinished"></translation>
     </message>
@@ -7205,8 +7878,16 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>File</source>
-        <translation type="unfinished">Arquivo</translation>
+        <source>Hits</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>ON — Break on Lua errors</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>OFF — Break on Lua errors</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Files</source>
@@ -7217,11 +7898,11 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
         <translation type="unfinished">Avaliar</translation>
     </message>
     <message>
-        <source>Enter Lua expression (prefix with = to return value)</source>
+        <source>&lt;b&gt;Lua Expression Evaluation&lt;/b&gt;&lt;br&gt;&lt;br&gt;Code runs in a protected environment: runtime errors are caught and shown in the output instead of propagating.&lt;br&gt;&lt;br&gt;&lt;b&gt;What works:&lt;/b&gt;&lt;ul&gt;&lt;li&gt;Read/modify global variables (&lt;code&gt;_G.x = 42&lt;/code&gt;)&lt;/li&gt;&lt;li&gt;Modify table contents (&lt;code&gt;my_table.field = 99&lt;/code&gt;)&lt;/li&gt;&lt;li&gt;Call functions and inspect return values&lt;/li&gt;&lt;/ul&gt;&lt;b&gt;Limitations:&lt;/b&gt;&lt;ul&gt;&lt;li&gt;Local variables cannot be modified directly (use &lt;code&gt;debug.setlocal()&lt;/code&gt;) unless there is an associated &lt;i&gt;assign&lt;/i&gt; method (&lt;code&gt;pinfo.src_port&lt;/code&gt;)&lt;/li&gt;&lt;li&gt;Long-running expressions are automatically aborted&lt;/li&gt;&lt;li&gt;&lt;b&gt;Warning:&lt;/b&gt; Changes to globals persist and can affect ongoing dissection&lt;/li&gt;&lt;/ul&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>&lt;b&gt;Lua Expression Evaluation&lt;/b&gt;&lt;br&gt;&lt;br&gt;Code is executed using &lt;code&gt;lua_pcall()&lt;/code&gt; in a protected environment. Runtime errors are caught and displayed in the output.&lt;br&gt;&lt;br&gt;&lt;b&gt;Prefix with &lt;code&gt;=&lt;/code&gt;&lt;/b&gt; to return a value (e.g., &lt;code&gt;=my_var&lt;/code&gt;).&lt;br&gt;&lt;br&gt;&lt;b&gt;What works:&lt;/b&gt;&lt;ul&gt;&lt;li&gt;Read/modify global variables (&lt;code&gt;_G.x = 42&lt;/code&gt;)&lt;/li&gt;&lt;li&gt;Modify table contents (&lt;code&gt;my_table.field = 99&lt;/code&gt;)&lt;/li&gt;&lt;li&gt;Call functions and inspect return values&lt;/li&gt;&lt;/ul&gt;&lt;b&gt;Limitations:&lt;/b&gt;&lt;ul&gt;&lt;li&gt;Local variables cannot be modified directly (use &lt;code&gt;debug.setlocal()&lt;/code&gt;)&lt;/li&gt;&lt;li&gt;Long-running expressions are automatically aborted&lt;/li&gt;&lt;li&gt;&lt;b&gt;Warning:&lt;/b&gt; Changes to globals persist and can affect ongoing dissection&lt;/li&gt;&lt;/ul&gt;</source>
+        <source>Enter Lua expression</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -7237,7 +7918,7 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
         <translation type="unfinished">Limpar</translation>
     </message>
     <message>
-        <source>Clear input and output</source>
+        <source>Clear output</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -7265,55 +7946,43 @@ Por exemplo, use 1 hora para que um novo arquivo seja criado a cada hora, de hor
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Clear All Breakpoints</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message numerus="yes">
-        <source>Are you sure you want to remove %Ln breakpoint(s)?</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>Enable or disable this breakpoint</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>File not found: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1
-Line %2</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Remove this breakpoint</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Type: %1</source>
         <translation type="unfinished"></translation>
     </message>
-    <message numerus="yes">
-        <source>There are unsaved changes in %Ln open file(s).</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
-        </translation>
-    </message>
     <message>
-        <source>Save Lua Script</source>
+        <source>Remove All Breakpoints</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Could not write to %1:
-%2</source>
+        <source>Add Watch (%1)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Save changes to %1 before closing?</source>
+        <source>&lt;p&gt;Each row is either a &lt;b&gt;Variables-tree path&lt;/b&gt; or a &lt;b&gt;Lua expression&lt;/b&gt;; the panel auto-detects which based on the syntax you type.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Path watches&lt;/b&gt; &amp;mdash; resolved against the paused frame&apos;s locals, upvalues, and globals:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Section-qualified: &lt;code&gt;Locals.&lt;i&gt;name&lt;/i&gt;&lt;/code&gt;, &lt;code&gt;Upvalues.&lt;i&gt;name&lt;/i&gt;&lt;/code&gt;, &lt;code&gt;Globals.&lt;i&gt;name&lt;/i&gt;&lt;/code&gt;.&lt;/li&gt;&lt;li&gt;Section root alone: &lt;code&gt;Locals&lt;/code&gt;, &lt;code&gt;Upvalues&lt;/code&gt;, &lt;code&gt;Globals&lt;/code&gt; (&lt;code&gt;_G&lt;/code&gt; is an alias for &lt;code&gt;Globals&lt;/code&gt;).&lt;/li&gt;&lt;li&gt;Unqualified name: resolved in &lt;b&gt;Locals &amp;rarr; Upvalues &amp;rarr; Globals&lt;/b&gt; order; the row tooltip shows which section matched.&lt;/li&gt;&lt;/ul&gt;&lt;p&gt;After the first segment, chain &lt;code&gt;.field&lt;/code&gt; or bracket keys &amp;mdash; integer (&lt;code&gt;[1]&lt;/code&gt;, &lt;code&gt;[-1]&lt;/code&gt;, &lt;code&gt;[0x1F]&lt;/code&gt;), boolean (&lt;code&gt;[true]&lt;/code&gt;), or short-literal string (&lt;code&gt;[&quot;key&quot;]&lt;/code&gt;, &lt;code&gt;[&apos;k&apos;]&lt;/code&gt;). Depth is capped at 32 segments.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Expression watches&lt;/b&gt; &amp;mdash; anything that is not a plain path (operators, function/method calls, table constructors, length &lt;code&gt;#&lt;/code&gt;, comparisons, &amp;hellip;) is evaluated as Lua against the same locals/upvalues/globals. &lt;b&gt;You do not need a leading &lt;code&gt;=&lt;/code&gt; or &lt;code&gt;return&lt;/code&gt;&lt;/b&gt;; value-returning expressions auto-return their value. Examples: &lt;code&gt;#packets&lt;/code&gt;, &lt;code&gt;tbl[i + 1]&lt;/code&gt;, &lt;code&gt;obj:method()&lt;/code&gt;, &lt;code&gt;a == b&lt;/code&gt;, &lt;code&gt;{x, y}&lt;/code&gt;. Tables produced by an expression are expandable, and children re-resolve on every pause.&lt;/p&gt;&lt;p&gt;Values are only read while the debugger is &lt;b&gt;paused&lt;/b&gt;; otherwise the Value column shows a muted em dash. Values that differ from the previous pause are drawn in a &lt;b&gt;bold accent color&lt;/b&gt;, and briefly flash on the pause that introduced the change.&lt;/p&gt;&lt;p&gt;Double-click or press &lt;b&gt;F2&lt;/b&gt; to edit a row; &lt;b&gt;Delete&lt;/b&gt; removes it; drag rows to reorder. Use the &lt;b&gt;Evaluate&lt;/b&gt; panel below to run statements with side effects (assignments, blocks, loops).&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove Watch (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove All Watches (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No breakpoints</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit Breakpoint</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove Breakpoint (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove All Breakpoints (%1)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -7353,23 +8022,11 @@ Line %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Evaluate &quot;%1&quot;</source>
+        <source>Add Watch: &quot;%1&quot;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>%1 = %2</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Copy Name</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Copy Value</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Copy Name &amp;&amp; Value</source>
+        <source>Debugger is paused. Uncheck to disable.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -7377,7 +8034,15 @@ Line %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Debugger is disabled while a live capture is running. Stop the capture to re-enable.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Debugger is disabled. Check to enable.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disabled (live capture)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -7389,6 +8054,10 @@ Line %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>(runtime error)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Running</source>
         <translation type="unfinished"></translation>
     </message>
@@ -7397,21 +8066,83 @@ Line %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Are you sure you want to reload all Lua plugins?
-
-This will restart all Lua scripts and may affect capture analysis.</source>
+        <source>Lua Debugger</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Evaluation available when debugger is paused</source>
+        <source>Continue</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Error: %1</source>
+        <source>F5</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Error: Unknown error</source>
+        <source>Step Over</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>F10</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Step Into</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>F11</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Step Out</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shift+F11</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add Watch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ctrl+Shift+W</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open File</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save</source>
+        <translation type="unfinished">Salvar</translation>
+    </message>
+    <message>
+        <source>Ctrl+S</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Find…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ctrl+F</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Go to Line…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ctrl+G</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reload Lua Plugins</source>
+        <translation type="unfinished">Recarregar Plugins Lua</translation>
+    </message>
+    <message>
+        <source>Ctrl+Shift+L</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -7459,6 +8190,69 @@ This will restart all Lua scripts and may affect capture analysis.</source>
     <message>
         <source>Cancel</source>
         <translation type="unfinished">Cancelar</translation>
+    </message>
+</context>
+<context>
+    <name>LuaDebuggerPauseOverlay</name>
+    <message>
+        <source>Lua debugger paused</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Use the Lua Debugger window to step, continue, or evaluate. The main window resumes when execution is released.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>LuaDebuggerWatchController</name>
+    <message numerus="yes">
+        <source>Are you sure you want to remove %Ln watch(es)?</source>
+        <translation type="obsolete">
+            <numerusform>Are you sure you want to remove %Ln watch?</numerusform>
+            <numerusform>Are you sure you want to remove %Ln watches?</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Lua Debugger</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Watch expression is too long (maximum %Ln characters).</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+</context>
+<context>
+    <name>LuaDebuggerWatchRowPresenter</name>
+    <message>
+        <source>Enter a variable path (e.g. Locals.x, Globals.t.k) or a Lua expression in the Watch column to see a value here.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Value shown only while the debugger is paused.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Value shown only while the debugger is paused. The debugger is currently disabled.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Type: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>error</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not evaluate watch.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Expression — re-evaluated on every pause.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -7603,6 +8397,10 @@ This will restart all Lua scripts and may affect capture analysis.</source>
     <message>
         <source>Selected Packet: %1 %2 </source>
         <translation>Pacote Selecionado: %1 %2 </translation>
+    </message>
+    <message>
+        <source> %1 Aggregated: %2</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source> %1 Selected: %2 (%3%)</source>
@@ -8240,8 +9038,20 @@ This will restart all Lua scripts and may affect capture analysis.</source>
         <translation>Diálogo</translation>
     </message>
     <message>
+        <source>&amp;Edit</source>
+        <translation type="unfinished">&amp;Editar</translation>
+    </message>
+    <message>
         <source>&lt;small&gt;&lt;i&gt;&lt;/i&gt;&lt;/small&gt;</source>
         <translation>&lt;small&gt;&lt;i&gt;&lt;/i&gt;&lt;/small&gt;</translation>
+    </message>
+    <message>
+        <source>Find in Packet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Find in the packet details tree (Ctrl+Alt+F)</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Show packet bytes</source>
@@ -8250,6 +9060,14 @@ This will restart all Lua scripts and may affect capture analysis.</source>
     <message>
         <source>Layout:</source>
         <translation>Layout:</translation>
+    </message>
+    <message>
+        <source>Find in &amp;Packet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Find in the packet details tree (%1)</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Packet %1</source>
@@ -8290,6 +9108,84 @@ This will restart all Lua scripts and may affect capture analysis.</source>
     </message>
 </context>
 <context>
+    <name>PacketFormatCArraysGroupBox</name>
+    <message>
+        <source>GroupBox</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Packet Format</source>
+        <translation type="unfinished">Formato do pacote</translation>
+    </message>
+    <message>
+        <source>Include secondary data sources</source>
+        <translation type="unfinished">Incluir fontes de dados secundárias</translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Generate arrays for secondary data sources like reassembled or decrypted buffers in addition to the frame&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Include an array to index into the list of frames&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Include index</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>PacketFormatCSVGroupBox</name>
+    <message>
+        <source>GroupBox</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Packet Format</source>
+        <translation type="unfinished">Formato do pacote</translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Escape non-ASCII and whitespace characters&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>ASCII</source>
+        <translation type="unfinished">ASCII</translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Export as a UTF-8 CSV&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>UTF-8</source>
+        <translation type="unfinished">UTF-8</translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Include a Byte Order Mark at the beginning of the file, for Windows&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Include Byte Order Mark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Prefix values that a spreadsheet would evaluate as a formula (those starting with &quot;=&quot;, &quot;+&quot;, &quot;-&quot; or &quot;@&quot;) with an apostrophe, so that packet data cannot inject a formula into the exported file&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Escape spreadsheet formulas</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Replace whitespace characters (tabs, newlines, etc.) with C-style escapes&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Escape whitespace</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>PacketFormatJSONGroupBox</name>
     <message>
         <source>GroupBox</source>
@@ -8306,6 +9202,14 @@ This will restart all Lua scripts and may affect capture analysis.</source>
     <message>
         <source>No duplicate keys</source>
         <translation>Sem chaves duplicadas</translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Output compact JSON without indentation (significantly faster and smaller)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Compact (no indentation)</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Export a name/value pair for each field with the field value&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
@@ -8473,16 +9377,16 @@ This will restart all Lua scripts and may affect capture analysis.</source>
         <translation>Exibir como Strings</translation>
     </message>
     <message>
-        <source>Display as packet Details</source>
-        <translation>Exibir como Detalhes do pacote</translation>
-    </message>
-    <message>
         <source>Column Preferences…</source>
         <translation>Preferências de Coluna…</translation>
     </message>
     <message>
         <source>Resize Column to Width…</source>
         <translation>Redimensionar Coluna para Largura…</translation>
+    </message>
+    <message>
+        <source>Display as Packet Details</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Remove this Column</source>
@@ -8608,7 +9512,7 @@ This will restart all Lua scripts and may affect capture analysis.</source>
 <context>
     <name>Plot</name>
     <message>
-        <source>Field cannot be empty!</source>
+        <source>Field cannot be empty.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -8800,7 +9704,7 @@ This will restart all Lua scripts and may affect capture analysis.</source>
     </message>
     <message>
         <source>Move Left 100 Pixels</source>
-        <translation type="unfinished">Mover 10 Pixels para a Esquerda {100 ?}</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Alt+Left</source>
@@ -8808,7 +9712,7 @@ This will restart all Lua scripts and may affect capture analysis.</source>
     </message>
     <message>
         <source>Move Right 100 Pixels</source>
-        <translation type="unfinished">Mover 10 Pixels para a Direita {100 ?}</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Alt+Right</source>
@@ -8816,7 +9720,7 @@ This will restart all Lua scripts and may affect capture analysis.</source>
     </message>
     <message>
         <source>Move Down 100 Pixels</source>
-        <translation type="unfinished">Mover 10 Pixels para Baixo {100 ?}</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Alt+Down</source>
@@ -9205,8 +10109,8 @@ This will restart all Lua scripts and may affect capture analysis.</source>
         <translation>Colunas</translation>
     </message>
     <message>
-        <source>Font and Colors</source>
-        <translation>Fonte e Cores</translation>
+        <source>Theme and Font</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Welcome Page</source>
@@ -9227,6 +10131,10 @@ This will restart all Lua scripts and may affect capture analysis.</source>
     <message>
         <source>RSA Keys</source>
         <translation>Chaves RSA</translation>
+    </message>
+    <message>
+        <source>Aggregation</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -9352,10 +10260,6 @@ This will restart all Lua scripts and may affect capture analysis.</source>
         <translation>Novo perfil</translation>
     </message>
     <message>
-        <source>Profile Error</source>
-        <translation>Erro de Perfil</translation>
-    </message>
-    <message>
         <source>Exporting profiles</source>
         <translation>Exportando perfis</translation>
     </message>
@@ -9380,22 +10284,6 @@ This will restart all Lua scripts and may affect capture analysis.</source>
             <numerusform>%Ln perfil pessoal selecionado</numerusform>
             <numerusform>%Ln perfis pessoais selecionados</numerusform>
         </translation>
-    </message>
-    <message>
-        <source>An import of profiles is not allowed, while changes are pending</source>
-        <translation>A importação de perfis não é permitida enquanto houver alterações pendentes</translation>
-    </message>
-    <message>
-        <source>An import is pending to be saved. Additional imports are not allowed</source>
-        <translation>Uma importação está pendente para ser salva. Importações adicionais não são permitidas</translation>
-    </message>
-    <message>
-        <source>An export of profiles is only allowed for personal profiles</source>
-        <translation>A exportação de perfis é permitida apenas para perfis pessoais</translation>
-    </message>
-    <message>
-        <source>An export of profiles is not allowed, while changes are pending</source>
-        <translation>A exportação de perfis não é permitida enquanto houver alterações pendentes</translation>
     </message>
     <message numerus="yes">
         <source>%Ln profile(s) exported</source>
@@ -9469,24 +10357,24 @@ This will restart all Lua scripts and may affect capture analysis.</source>
         <translation>Este é um perfil fornecido pelo sistema</translation>
     </message>
     <message>
-        <source>A profile change for this name is pending</source>
-        <translation>Uma alteração de perfil para este nome está pendente</translation>
-    </message>
-    <message>
-        <source> (See: %1)</source>
-        <translation> (Ver: %1)</translation>
-    </message>
-    <message>
-        <source>This is an invalid profile definition</source>
-        <translation>Esta é uma definição de perfil inválida</translation>
-    </message>
-    <message>
         <source>A profile already exists with this name</source>
         <translation>Já existe um perfil com este nome</translation>
     </message>
     <message>
-        <source>A profile with this name is being deleted</source>
-        <translation>Um perfil com este nome está sendo excluído</translation>
+        <source>Duplicate profile name (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A profile change for this name is pending (See: %1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 (originally %2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The %1 profile is being deleted</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Created from default settings</source>
@@ -9510,16 +10398,8 @@ This will restart all Lua scripts and may affect capture analysis.</source>
         <translation>copiar</translation>
     </message>
     <message>
-        <source>Exporting profiles while changes are pending is not allowed</source>
-        <translation>A exportação de perfis não é permitida enquanto houver alterações pendentes</translation>
-    </message>
-    <message>
         <source>No profiles found to export</source>
         <translation>Nenhum perfil encontrado para exportar</translation>
-    </message>
-    <message>
-        <source>Can&apos;t delete profile directory</source>
-        <translation>Não é possível excluir o diretório do perfil</translation>
     </message>
     <message>
         <source>A profile name cannot contain the following characters: %1</source>
@@ -9532,18 +10412,6 @@ This will restart all Lua scripts and may affect capture analysis.</source>
     <message>
         <source>A profile cannot start or end with a period (.)</source>
         <translation>Um perfil não pode começar ou terminar com um ponto (.)</translation>
-    </message>
-    <message>
-        <source>Default</source>
-        <translation>Padrão</translation>
-    </message>
-    <message>
-        <source>Global</source>
-        <translation>Global</translation>
-    </message>
-    <message>
-        <source>Personal</source>
-        <translation>Pessoal</translation>
     </message>
     <message>
         <source>Renamed from: %1</source>
@@ -9641,6 +10509,10 @@ This will restart all Lua scripts and may affect capture analysis.</source>
     <message>
         <source>Collapse All</source>
         <translation>Recolher tudo</translation>
+    </message>
+    <message>
+        <source>Distribution</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Copy</source>
@@ -10271,6 +11143,10 @@ This will restart all Lua scripts and may affect capture analysis.</source>
         <translation>UE Id</translation>
     </message>
     <message>
+        <source></source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Name</source>
         <translation>Nome</translation>
     </message>
@@ -10452,12 +11328,240 @@ This will restart all Lua scripts and may affect capture analysis.</source>
         <source>not found</source>
         <translation type="unfinished"></translation>
     </message>
-</context>
-<context>
-    <name>QObject::QObject::QObject</name>
     <message>
-        <source>CCCH</source>
-        <translation>CCCH</translation>
+        <source>Global</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Personal</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Type: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 = %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy Name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy Value</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy Path</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy Name &amp;&amp; Value</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add Watch: &quot;%1&quot;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reload Lua Plugins</source>
+        <translation type="unfinished">Recarregar Plugins Lua</translation>
+    </message>
+    <message>
+        <source>Are you sure you want to reload all Lua plugins?
+
+This will restart all Lua scripts and may affect capture analysis.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Evaluation available when debugger is paused</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enter Lua expression</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error: Unknown error</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Source</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy Location</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show in Finder</source>
+        <translation type="unfinished">Mostrar no Finder</translation>
+    </message>
+    <message>
+        <source>Show in Folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add Watch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove All Watches</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Duplicate Watch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit Watch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove</source>
+        <translation type="unfinished">Excluir</translation>
+    </message>
+    <message>
+        <source>Clear All Watches</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Are you sure you want to remove %Ln watch(es)?</source>
+        <translation type="unfinished">
+            <numerusform>Are you sure you want to remove %Ln watch?</numerusform>
+            <numerusform>Are you sure you want to remove %Ln watches?</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Maximum watch depth reached</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Maximum watch depth reached.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Location</source>
+        <translation type="unfinished">Localização</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;&lt;b&gt;Hit-count summary&lt;/b&gt;&lt;/p&gt;&lt;p&gt;&lt;code&gt;≥N&lt;/code&gt; &amp;mdash; &lt;i&gt;from&lt;/i&gt; mode: pause from hit &lt;i&gt;N&lt;/i&gt; onwards.&lt;br/&gt;&lt;code&gt;×N&lt;/code&gt; &amp;mdash; &lt;i&gt;every&lt;/i&gt; mode: pause on hits &lt;i&gt;N&lt;/i&gt;, &lt;i&gt;2N&lt;/i&gt;, &lt;i&gt;3N&lt;/i&gt;, &amp;hellip;&lt;br/&gt;&lt;code&gt;@N&lt;/code&gt; &amp;mdash; &lt;i&gt;once&lt;/i&gt; mode: pause once on the &lt;i&gt;N&lt;/i&gt;th hit, then deactivate.&lt;/p&gt;&lt;p&gt;The cell starts with the running hit counter; if a gate is set it follows in parentheses, e.g. &lt;code&gt;3 (≥10)&lt;/code&gt;. With no hit gate the cell is just the counter.&lt;/p&gt;&lt;p&gt;Edit the &lt;i&gt;Location&lt;/i&gt; cell to set or change the gate (see the breakpoint-extras section).&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reset Hit Count</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reset All Hit Counts</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove All Breakpoints</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clear All Breakpoints</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Are you sure you want to remove %Ln breakpoint(s)?</source>
+        <translation type="unfinished">
+            <numerusform>Are you sure you want to remove %Ln breakpoint?</numerusform>
+            <numerusform>Are you sure you want to remove %Ln breakpoints?</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Location: %1:%2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Condition: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>pauses on hits %1, 2×%1, 3×%1, …</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>pauses once on hit %1, then deactivates the breakpoint</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>pauses on every hit from %1 onwards</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hit Count: %1 / %2 (%3)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hits: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Log: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(logpoint — also pauses)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(logpoint — does not pause)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Condition error on last evaluation — treated as false (silent). Edit or reset the breakpoint to clear.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Condition error: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File not found: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Edit...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Disable</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Enable</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Remove</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No breakpoints
+%1: add or remove breakpoint on the current line in the editor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>All breakpoints are inactive — click to activate all
+%1: add or remove on the current line in the editor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click to deactivate all breakpoints
+%1: add or remove on the current line in the editor</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -11650,8 +12754,12 @@ This will restart all Lua scripts and may affect capture analysis.</source>
         <translation>, início: %1, cursor: %2. Pressione &quot;G&quot; para ir para o pacote %3. Clique duas vezes no gráfico para definir o início da reprodução.</translation>
     </message>
     <message>
-        <source>Playback of stream %1 failed!</source>
-        <translation>Falha na reprodução do fluxo %1!</translation>
+        <source>Playback of stream %1 failed.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save failed.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Automatic</source>
@@ -11701,10 +12809,6 @@ This will restart all Lua scripts and may affect capture analysis.</source>
     <message>
         <source>No streams are suitable for save</source>
         <translation>Nenhum fluxo é adequado para salvar</translation>
-    </message>
-    <message>
-        <source>Save failed!</source>
-        <translation>Falha ao salvar!</translation>
     </message>
     <message>
         <source>Can&apos;t write header of AU file</source>
@@ -12501,6 +13605,14 @@ This will restart all Lua scripts and may affect capture analysis.</source>
         <translation>Ocorrências Múltiplas</translation>
     </message>
     <message>
+        <source>Search the selected packet details tree</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Find in selected Packet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Search for data using display filter syntax (e.g. ip.addr==10.1.1.1), a hexadecimal string (e.g. fffffda5), a plain string (e.g. My String) or a regular expression (e.g. colou?r).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <oldsource>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Search for data using display filter syntax (e.g. ip.addr==10.1.1.1), a hexadecimal string (e.g. fffffda5) or a plain string (e.g. My String).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</oldsource>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Pesquise dados usando a sintaxe do filtro de exibição (por exemplo, ip.addr==10.1.1.1), uma cadeia hexadecimal (por exemplo, fffffda5), uma cadeia simples (por exemplo, My String) ou uma expressão regular (por exemplo, colou?r).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
@@ -12536,6 +13648,14 @@ This will restart all Lua scripts and may affect capture analysis.</source>
     <message>
         <source>Invalid filter.</source>
         <translation>Filtro inválido.</translation>
+    </message>
+    <message>
+        <source>Search for a plain text string in the current packet details tree (e.g. My String).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Search using a regular expression in the current packet details tree (e.g. colou?r).</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>That filter doesn&apos;t test anything.</source>
@@ -12580,6 +13700,30 @@ This will restart all Lua scripts and may affect capture analysis.</source>
     <message>
         <source>No packet matched that filter.</source>
         <translation>Nenhum pacote correspondeu a esse filtro.</translation>
+    </message>
+    <message>
+        <source>Find in Packet supports string and regular expression search only.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>[no matches] %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No %1 found.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>[%1 of %2]</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Search for a plain text string/char in the current packet details tree (e.g. &apos;flag&apos; or &apos;f&apos;).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Search using a regular expression in the current packet details tree (e.g. &apos;d&apos;).</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -14025,6 +15169,312 @@ This will restart all Lua scripts and may affect capture analysis.</source>
     </message>
 </context>
 <context>
+    <name>TcpDedupDialog</name>
+    <message>
+        <source>TCP Duplication Table</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The &quot;Detect duplication (capture-level) packets&quot; preference must be enabled in
+Preferences → Protocols → TCP to use this table.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Time</source>
+        <translation type="unfinished">Tempo</translation>
+    </message>
+    <message>
+        <source>Delta</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Frame Number</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Duplication Total</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Frame List</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Info</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stream:</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>ThemeDebugDialog</name>
+    <message>
+        <source>Theme Debug</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation type="unfinished">Nome:</translation>
+    </message>
+    <message>
+        <source>Internal:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Version:</source>
+        <translation type="unfinished">Versão:</translation>
+    </message>
+    <message>
+        <source>Author:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Description:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Dark mode:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Theme</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Geometry:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Frame geometry:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Screen:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>DPI / DPR:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Window state:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>These values refresh live while the dialog is open.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Main Window</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Track widget under mouse</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The inspector reports any widget in this application under the cursor — including child dialogs. Widgets that belong to this debug window are skipped so the last hovered target stays pinned. Hold Alt+Shift and click any widget to pin it: this turns off tracking and locks the readout onto that widget (re-check the box above to resume). Note: on macOS, tool windows are hidden whenever another application has focus, so tracking pauses until Wireshark is frontmost again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cursor (global):</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Class:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Object name:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Font:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Global rect:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Parent chain:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Palette (Active group):</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Role</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>ThemeManager token</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Swatch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stylesheet:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(no stylesheet)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Widget Inspector</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Token</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hex</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tokens</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Refresh</source>
+        <translation type="unfinished">Atualizar</translation>
+    </message>
+    <message>
+        <source>yes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>no</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(no main window)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(unknown)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>maximized</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>minimized</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>fullscreen</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>active</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>normal</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(unset)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(none)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(unnamed)</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>ThemePreviewWidget</name>
+    <message>
+        <source>No.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Time</source>
+        <translation type="unfinished">Tempo</translation>
+    </message>
+    <message>
+        <source>Delta</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Source</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Destination</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Protocol</source>
+        <translation type="unfinished">Protocolo</translation>
+    </message>
+    <message>
+        <source>Length</source>
+        <translation type="unfinished">Comprimento</translation>
+    </message>
+    <message>
+        <source>Show Coloring Rules</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save Image As…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save Theme Preview</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>PNG Image (*.png)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not write the image to &quot;%1&quot;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Info</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ready</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Profile: Default</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Packets: %1</source>
+        <translation type="unfinished">Pacotes: %1</translation>
+    </message>
+    <message>
+        <source>Displayed: %1 (100.0%)</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>TimeShiftDialog</name>
     <message>
         <source>Shift all packets by</source>
@@ -14720,6 +16170,10 @@ This will restart all Lua scripts and may affect capture analysis.</source>
     </message>
     <message>
         <source>Tip of the Day</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Auto advance slides</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -16236,6 +17690,22 @@ This will restart all Lua scripts and may affect capture analysis.</source>
         <translation>Vazão TCP</translation>
     </message>
     <message>
+        <source>Duplication Table</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>TCP capture-level duplicate packet table</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Distribution</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Distribution statistics</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>General</source>
         <translation>Geral</translation>
     </message>
@@ -16540,6 +18010,14 @@ This will restart all Lua scripts and may affect capture analysis.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>&amp;Theme Debug</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show the active theme, main window geometry, and live widget info</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>MAP Summary</source>
         <translation>Sumário MAP</translation>
     </message>
@@ -16561,10 +18039,6 @@ This will restart all Lua scripts and may affect capture analysis.</source>
     </message>
     <message>
         <source>Aggregation in Live Capture</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Aggregation View.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -16938,6 +18412,14 @@ This will restart all Lua scripts and may affect capture analysis.</source>
         <translation>Tipo de arquivo desconhecido retornado pela caixa de diálogo de exportação.</translation>
     </message>
     <message>
+        <source>Aggregation View — displays frames grouped by your configured aggregation fields.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Aggregation View — displays frames grouped by your configured aggregation fields. To activate, go to Preferences → Aggregation.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Unsaved packets…</source>
         <translation type="unfinished"></translation>
     </message>
@@ -16986,6 +18468,22 @@ This will restart all Lua scripts and may affect capture analysis.</source>
     <message>
         <source>Show or hide the toolbar</source>
         <translation>Exibir ou ocultar a barra de ferramentas</translation>
+    </message>
+    <message>
+        <source>DIS Streams</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show and analyze DIS radio streams</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>IMSI List</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show all IMSIs in the capture</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Lua Debugger</source>

@@ -15,12 +15,15 @@
 #ifndef TEXT2PCAP_H
 #define TEXT2PCAP_H
 
+/**
+ * @brief Token types produced by the bytecode/directive lexer.
+ */
 typedef enum {
-    T_BYTE = 1,
-    T_OFFSET,
-    T_DIRECTIVE,
-    T_TEXT,
-    T_EOL
+    T_BYTE      = 1, /**< A raw byte value token */
+    T_OFFSET,        /**< An offset value token */
+    T_DIRECTIVE,     /**< A directive keyword token */
+    T_TEXT,          /**< A plain text string token */
+    T_EOL            /**< End-of-line token */
 } token_t;
 
 /**
@@ -34,6 +37,14 @@ typedef enum {
  */
 int parse_token(token_t token, char *str);
 
+/**
+ * @brief Scans for text2pcap utility functionality.
+ *
+ * This function is used to scan and identify the capabilities of the text2pcap utility,
+ * which converts an ASCII hexdump into a libpcap-format capture file.
+ *
+ * @return 0 on success, -1 on failure.
+ */
 int text2pcap_scan(void);
 
 #endif

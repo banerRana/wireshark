@@ -506,7 +506,7 @@ check_hec(uint8_t uap, uint32_t header)
 }
 
 static bool
-check_crc(uint8_t uap, tvbuff_t *tvb, int offset, int len)
+check_crc(uint8_t uap, tvbuff_t *tvb, unsigned offset, int len)
 {
     static const uint16_t crc_poly_rev_bt_pdu = 0x8408;
     uint16_t crc = reverse_bits(uap);
@@ -2524,6 +2524,9 @@ proto_register_btbredr_rf(void)
 
     expert_module = expert_register_protocol(proto_btbredr_rf);
     expert_register_field_array(expert_module, ei, array_length(ei));
+
+    reassembly_table_register(&l2cap_msg_reassembly_table,
+        &addresses_reassembly_table_functions);
 }
 
 void

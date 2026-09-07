@@ -42,6 +42,7 @@
 #include <wsutil/strtoi.h>
 #include <wsutil/glib-compat.h>
 #include <wsutil/ws_padding_to.h>
+#include <wsutil/nstime.h>
 
 #include "wtap_module.h"
 #include "file_wrappers.h"
@@ -999,7 +1000,7 @@ static void erf_dump_priv_init_gen_time(erf_dump_t *dump_priv) {
 
   real_time = g_get_real_time();
   /* Convert TimeVal to ERF timestamp */
-  dump_priv->gen_time = ((real_time / G_USEC_PER_SEC) << 32) + ((real_time % G_USEC_PER_SEC) << 32) / 1000 / 1000;
+  dump_priv->gen_time = ((real_time / WS_USECS_PER_SEC) << 32) + ((real_time % WS_USECS_PER_SEC) << 32) / 1000 / 1000;
 }
 
 
@@ -1624,7 +1625,7 @@ static bool erf_write_anchor_meta_update_phdr(wtap_dumper *wdh, erf_dump_t *dump
    * Now construct the metadata Anchor record with the same Anchor ID
    */
 
-  meta_ehdrs = g_array_new(false, false, sizeof(struct erf_ehdr));
+  meta_ehdrs = g_array_new(FALSE, FALSE, sizeof(struct erf_ehdr));
 
   /* We need up to 4 extension headers on the Provenance metadata record */
   /*Required*/
@@ -1676,7 +1677,7 @@ static bool erf_write_meta_record(wtap_dumper *wdh, erf_dump_t *dump_priv, uint6
   struct erf_meta_section *section_ptr;
   unsigned total_wlen = 0;
   unsigned total_rlen = 0;
-  int64_t alignbytes = 0;
+  uint64_t alignbytes = 0;
   unsigned i;
   unsigned num_extra_ehdrs = 0;
 
@@ -1769,7 +1770,7 @@ static erf_dump_t *erf_dump_priv_create(void) {
   dump_priv->prev_erf_type = 0;
   dump_priv->user_comment_ptr = NULL;
   dump_priv->periodic_sections = NULL;
-  dump_priv->periodic_extra_ehdrs = g_array_new(false, false, sizeof(struct erf_ehdr));
+  dump_priv->periodic_extra_ehdrs = g_array_new(FALSE, FALSE, sizeof(struct erf_ehdr));
   dump_priv->rand = g_rand_new();
 
   return dump_priv;
@@ -1785,9 +1786,9 @@ static bool erf_dump(
   union wtap_pseudo_header other_phdr;
   const uint8_t *pd = ws_buffer_start_ptr(&rec->data);
   int      erf_type;
-  int64_t  alignbytes   = 0;
+  uint64_t alignbytes = 0;
   unsigned padbytes   = 0;
-  int      round_down   = 0;
+  unsigned round_down = 0;
   bool must_add_crc = false;
   uint32_t crc32        = 0x00000000;
   erf_dump_t *dump_priv = (erf_dump_t*)wdh->priv;
@@ -1890,8 +1891,16 @@ static bool erf_dump(
     total_rlen += 8;
 
     padbytes = WS_PADDING_TO_8(total_rlen);  /*calculate how much padding will be required */
-    if(rec->rec_header.packet_header.caplen < rec->rec_header.packet_header.len){ /*if packet has been snapped, we need to round down what we output*/
-      round_down = (8 - padbytes) % 8;
+    if(rec->rec_header.packet_header.caplen < rec->rec_header.packet_header.len){
+      /* if packet has been snapped, we need to round down what we output;
+       * if we added padding, then the padding would be treated as the missing
+       * captured length. */
+      round_down = (8U - padbytes) % 8U;
+      if (rec->rec_header.packet_header.caplen < round_down) {
+        *err = WTAP_ERR_UNWRITABLE_REC_DATA;
+        *err_info = ws_strdup_printf("erf: Truncated record too short to align for output");
+        return false;
+      }
       total_rlen -= round_down;
     }else{
       total_rlen += padbytes;
@@ -2670,7 +2679,7 @@ static int populate_capture_host_info(erf_t *erf_priv, wtap *wth, union wtap_pse
      *
      * If we have no app_version, this will just use app_name.
      */
-    // coverity[var_deref_model:FALSE]
+    // coverity[var_deref_model:false]
     tmp = g_strjoin(" ", app_name ? app_name : "(Unknown application)", app_version, NULL);
     wtap_block_set_string_option_value(shb_hdr, OPT_SHB_USERAPPL, tmp, strlen(tmp));
     g_free(tmp);
@@ -3276,6 +3285,15 @@ static int populate_summary_info(erf_t *erf_priv, wtap *wth, wtap_rec *rec, uint
       if(state.gen_time == 0U
           && tag.type == ERF_META_TAG_gen_time
           ) {
+        if (tag.length < sizeof(state.gen_time)) {
+          /*
+           * Skip the record if the time tag is bogusly short.
+           * XXX - Should this, and other tags with bogus length,
+           * be reported as an error and bad file?
+           */
+          return 0;
+        }
+
         memcpy(&state.gen_time, tag.value, sizeof(state.gen_time));
 
         /*

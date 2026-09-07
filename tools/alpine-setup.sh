@@ -66,7 +66,6 @@ BASIC_LIST="
 	qt6-qttools-dev
 	qt6-qtmultimedia-dev
 	qt6-qtsvg-dev
-	qt6-qt5compat-dev
 	speexdsp-dev
 	python3
 	"
@@ -98,12 +97,12 @@ ADDITIONAL_LIST="
 	xxhash-dev
 	"
 
-# Uncomment to add PNG compression utilities used by compress-pngs:
-# ADDITIONAL_LIST="$ADDITIONAL_LIST
-#	advancecomp
-#	optipng
-#	oxipng
-#	pngcrush"
+# PNG compression utilities used by compress-pngs:
+ADDITIONAL_LIST="$ADDITIONAL_LIST
+	advancecomp
+	optipng
+	oxipng
+	pngcrush"
 
 # Adds package $2 to list variable $1 if the package is found.
 # If $3 is given, then this version requirement must be satisfied.

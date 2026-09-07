@@ -47,19 +47,20 @@ ADD_MAN_PAGE(androiddump 1)
 ADD_MAN_PAGE(capinfos    1)
 ADD_MAN_PAGE(captype     1)
 ADD_MAN_PAGE(ciscodump   1)
+ADD_MAN_PAGE(dumpcalls   1)
 ADD_MAN_PAGE(dumpcap     1)
 ADD_MAN_PAGE(editcap     1)
+ADD_MAN_PAGE(etwdump     1)
+ADD_MAN_PAGE(falcodump   1)
 ADD_MAN_PAGE(mergecap    1)
 ADD_MAN_PAGE(randpkt     1)
 ADD_MAN_PAGE(randpktdump 1)
-ADD_MAN_PAGE(etwdump     1)
 ADD_MAN_PAGE(rawshark    1)
 ADD_MAN_PAGE(reordercap  1)
+ADD_MAN_PAGE(sharkd      1)
 ADD_MAN_PAGE(sshdig      1)
 ADD_MAN_PAGE(sshdump     1)
 ADD_MAN_PAGE(text2pcap   1)
-ADD_MAN_PAGE(dumpcalls   1)
-ADD_MAN_PAGE(falcodump   1)
 ADD_MAN_PAGE(udpdump     1)
 ADD_MAN_PAGE(wifidump    1)
 
@@ -324,8 +325,8 @@ set(WSUG_GRAPHICS
 	wsug_src/images/ws-packet-sep-win.png
 	wsug_src/images/ws-pref-advanced.png
 	wsug_src/images/ws-pref-appearance-columns.png
-	wsug_src/images/ws-pref-appearance-fonts-and-colors.png
 	wsug_src/images/ws-pref-appearance-layout.png
+	wsug_src/images/ws-pref-appearance-theme-and-font.png
 	wsug_src/images/ws-pref-appearance.png
 	wsug_src/images/ws-pref-capture.png
 	wsug_src/images/ws-pref-expert.png
@@ -380,6 +381,7 @@ set(WSDG_FILES
 	wsdg_src/wsdg_dissection.adoc
 	wsdg_src/wsdg_env_intro.adoc
 	wsdg_src/wsdg_libraries.adoc
+	wsdg_src/wsdg_lua_debugger.adoc
 	wsdg_src/wsdg_lua_support.adoc
 	wsdg_src/wsdg_preface.adoc
 	wsdg_src/wsdg_quick_setup.adoc
@@ -411,6 +413,7 @@ set(WSDG_GRAPHICS
 	wsdg_src/images/ws-function-blocks.dia
 	wsdg_src/images/ws-function-blocks.svg
 	wsdg_src/images/ws-logo.png
+	wsdg_src/images/wslua-debugger.png
 )
 
 set(WSUG_SOURCE

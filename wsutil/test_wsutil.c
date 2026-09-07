@@ -14,6 +14,7 @@
 #include <wsutil/utf8_entities.h>
 #include <wsutil/time_util.h>
 #include <wsutil/to_str.h>
+#include <wsutil/saplzclzh.h>
 
 #include "inet_addr.h"
 
@@ -177,6 +178,25 @@ static void test_escape_string(void)
     buf = ws_escape_csv(NULL, "CSV-style \" escape", true, '"', true, false);
     g_assert_cmpstr(buf, ==, "\"CSV-style \"\" escape\"");
     wmem_free(NULL, buf);
+}
+
+static void test_csv_value_is_formula(void)
+{
+    g_assert_true(ws_csv_value_is_formula("=HYPERLINK(\"http://example.com\")"));
+    g_assert_true(ws_csv_value_is_formula("+1+1"));
+    g_assert_true(ws_csv_value_is_formula("-1+1"));
+    g_assert_true(ws_csv_value_is_formula("@SUM(A1)"));
+    /* Leading blanks may be stripped on import */
+    g_assert_true(ws_csv_value_is_formula("   =1+1"));
+    g_assert_true(ws_csv_value_is_formula("\t=1+1"));
+    g_assert_true(ws_csv_value_is_formula("\r=1+1"));
+
+    g_assert_false(ws_csv_value_is_formula(NULL));
+    g_assert_false(ws_csv_value_is_formula(""));
+    g_assert_false(ws_csv_value_is_formula("   "));
+    g_assert_false(ws_csv_value_is_formula("GET / HTTP/1.1"));
+    g_assert_false(ws_csv_value_is_formula("192.0.2.1"));
+    g_assert_false(ws_csv_value_is_formula("1+1"));
 }
 
 static void test_strconcat(void)
@@ -897,6 +917,92 @@ static void test_getopt_opterr1(void)
 #endif
 }
 
+static const uint8_t sap_lzclzh_expected[] =
+    "TESTTESTTESTTESTTESTTESTTESTTESTTESTTESTTESTTESTTESTTEST"
+    "TESTTESTTESTTESTTESTTESTTESTTESTTESTTESTTESTTESTTESTTEST"
+    "TESTTESTTESTTESTTESTTESTTESTTESTTESTTESTTESTTESTTESTTEST"
+    "TESTTESTTESTTESTTESTTESTTESTTESTTESTTESTTESTTESTTESTTEST"
+    "TESTTESTTESTTESTTESTTESTTESTTESTTESTTESTTESTTESTTESTTEST";
+
+static const uint8_t sap_lzh_compressed[] = {
+    0x18, 0x1, 0x0, 0x0, 0x12, 0x1f, 0x9d, 0x2, 0x5d, 0x88, 0x6b, 0x70, 0x48, 0xc8, 0x28, 0xc6, 0xc0, 0x0
+};
+
+static const uint8_t sap_lzc_compressed[] = {
+    0x18, 0x1, 0x0, 0x0, 0x11, 0x1f, 0x9d, 0x8d, 0x54, 0x8a, 0x4c, 0xa1, 0x12, 0x70, 0x60, 0x41, 0x82, 0x2,
+    0x11, 0x1a, 0x4c, 0x78, 0xb0, 0x21, 0xc3, 0x87, 0xb, 0x23, 0x2a, 0x9c, 0xe8, 0x50, 0x62, 0x45, 0x8a, 0x10,
+    0x31, 0x5a, 0xcc, 0x78, 0xb1, 0x23, 0xc7, 0x8f, 0x1b, 0x43, 0x6a, 0x1c, 0xe9, 0x51, 0x64, 0x49, 0x92, 0x20,
+    0x51, 0x9a, 0x4c, 0x79, 0xf2, 0x20
+};
+
+static void
+test_sap_lzclzh_decompress(void)
+{
+    int rt = 0;
+    wmem_allocator_t *allocator;
+    uint8_t* str_out;
+    unsigned str_in_len, str_out_len;
+    const unsigned str_out_expected_len = (unsigned)strlen((const char*)sap_lzclzh_expected);
+
+    allocator = wmem_allocator_new(WMEM_ALLOCATOR_BLOCK);
+
+    /* LZH Decompression */
+    str_in_len = sizeof(sap_lzh_compressed);
+    str_out_len = str_out_expected_len;
+    str_out = wmem_alloc0(allocator, str_out_expected_len);
+    rt = sap_lzclzh_decompress(allocator, sap_lzh_compressed, str_in_len, str_out, &str_out_len);
+    g_assert_cmpint(rt, == , CS_END_OF_STREAM);
+    g_assert_cmpuint(str_out_len, ==, str_out_expected_len);
+    g_assert_cmpmem(sap_lzclzh_expected, str_out_expected_len, str_out, str_out_len);
+    wmem_free(allocator, str_out);
+
+    /* LZC Decompression */
+    str_in_len = sizeof(sap_lzc_compressed);
+    str_out_len = str_out_expected_len;
+    str_out = wmem_alloc0(allocator, str_out_expected_len);
+    rt = sap_lzclzh_decompress(allocator, sap_lzc_compressed, str_in_len, str_out, &str_out_len);
+    g_assert_cmpint(rt, ==, CS_END_OF_STREAM);
+    g_assert_cmpuint(str_out_len, ==, str_out_expected_len);
+    g_assert_cmpmem(sap_lzclzh_expected, str_out_expected_len, str_out, str_out_len);
+    wmem_free(allocator, str_out);
+
+    wmem_destroy_allocator(allocator);
+}
+
+static void
+test_sap_lzclzh_decompress_errors(void)
+{
+    uint8_t str_out[sizeof(sap_lzclzh_expected)];
+    uint8_t bad_magic[] = { 0x18, 0x1, 0x0, 0x0, 0x11, 0x0, 0x0, 0x0 };
+    uint8_t unknown_algorithm[] = { 0x18, 0x1, 0x0, 0x0, 0x13, 0x1f, 0x9d, 0x0 };
+    unsigned str_out_len;
+    int rt;
+
+    str_out_len = sizeof(str_out);
+    rt = sap_lzclzh_decompress(NULL, NULL, sizeof(sap_lzh_compressed), str_out, &str_out_len);
+    g_assert_cmpint(rt, ==, CS_E_INVALID_ADDR);
+
+    rt = sap_lzclzh_decompress(NULL, sap_lzh_compressed, sizeof(sap_lzh_compressed), str_out, NULL);
+    g_assert_cmpint(rt, ==, CS_E_INVALID_ADDR);
+
+    str_out_len = 0;
+    rt = sap_lzclzh_decompress(NULL, sap_lzh_compressed, sizeof(sap_lzh_compressed), str_out, &str_out_len);
+    g_assert_cmpint(rt, ==, CS_E_OUT_BUFFER_LEN);
+
+    str_out_len = 1;
+    rt = sap_lzclzh_decompress(NULL, sap_lzh_compressed, sizeof(sap_lzh_compressed), str_out, &str_out_len);
+    g_assert_cmpint(rt, ==, CS_END_OUTBUFFER);
+
+    str_out_len = sizeof(str_out);
+    rt = sap_lzclzh_decompress(NULL, bad_magic, sizeof(bad_magic), str_out, &str_out_len);
+    g_assert_cmpint(rt, ==, CS_E_FILENOTCOMPRESSED);
+
+    str_out_len = sizeof(str_out);
+    rt = sap_lzclzh_decompress(NULL, unknown_algorithm, sizeof(unknown_algorithm), str_out, &str_out_len);
+    g_assert_cmpint(rt, ==, CS_E_UNKNOWN_ALG);
+}
+
+
 #include <wsutil/strtoi.h>
 
 static void
@@ -1031,6 +1137,153 @@ static void test_ws_hexbuftou64(void)
     test_uint64(hexstr, 2, &hexstr[1], 0, true, 0, 0);
 }
 
+static void
+test_int64(const uint8_t *str, size_t len, const uint8_t *end, int base, bool result, int64_t value, int err)
+{
+    int64_t cint;
+    const uint8_t *endp;
+    int error;
+
+    errno = 0;
+    bool res = ws_basebuftoi64(str, len, end ? &endp : NULL, &cint, base);
+    error = errno;
+
+    g_assert_true(res == result);
+    g_assert_cmpstr(g_strerror(error), ==, g_strerror(err));
+    if (base == 16) {
+        g_assert_cmphex(cint, ==, value);
+    } else {
+        g_assert_cmpint(cint, ==, value);
+    }
+    if (end) {
+        g_assert_true(endp == end);
+    }
+}
+
+static void test_ws_basebuftoi64(void)
+{
+    WS_NONSTRING const uint8_t teststr[7] = "00123\0004";
+
+    /* Leading zeroes are fine when base 10 or 16 is specified. */
+    test_int64(teststr, 5, NULL, 10, true, 123, 0);
+    test_int64(teststr, 5, NULL, 16, true, 0x123, 0);
+
+    /* But means octal when base 0 is specified. */
+    test_int64(teststr, 5, NULL, 8, true, 83, 0);
+    test_int64(teststr, 5, NULL, 0, true, 83, 0);
+
+    /* Truncating before the NULL truncates. */
+    test_int64(teststr, 4, NULL, 10, true, 12, 0);
+
+    /* Including the NULL or later results in false. */
+    test_int64(teststr, 6, NULL, 10, false, 0, EINVAL);
+    test_int64(teststr, 7, NULL, 10, false, 0, EINVAL);
+
+    /* UINT64_MAX is too large for an int64_t. */
+    WS_NONSTRING uint8_t uintmaxstr[20] = "18446744073709551615";
+    test_int64(uintmaxstr, 20, NULL, 10, false, INT64_MAX, ERANGE);
+    uintmaxstr[19]++;
+    test_int64(uintmaxstr, 20, NULL, 10, false, INT64_MAX, ERANGE);
+
+    /* INT64_MIN is the smallest int64_t. */
+    WS_NONSTRING uint8_t intminstr[20] = "-9223372036854775808";
+    test_int64(intminstr, 20, NULL, 10, true, INT64_MIN, 0);
+    /* Two's complement isn't symmetric. */
+    test_int64(&intminstr[1], 19, NULL, 10, false, INT64_MAX, ERANGE);
+    intminstr[19]--;
+    test_int64(&intminstr[1], 19, NULL, 10, true, INT64_MAX, 0);
+
+    /* No trailing whitespace when end is NULL. */
+    uintmaxstr[19] = ' ';
+    test_int64(uintmaxstr, 20, NULL, 10, false, 0, EINVAL);
+
+    /* No signs allowed. */
+    test_int64((const uint8_t*)"-1", 2, NULL, 10, true, -1, 0);
+    test_int64((const uint8_t*)"+1", 2, NULL, 10, true, 1, 0);
+
+    /* This is allowed to break early when end is NULL */
+    WS_NONSTRING const uint8_t longstr[30] = "123456789012345678901234567890";
+    test_int64(longstr, 30, NULL, 10, false, INT64_MAX, ERANGE);
+}
+
+static void test_ws_basebuftoi64_end(void)
+{
+    WS_NONSTRING const uint8_t teststr[7] = "00123\0004";
+
+    /* Leading zeroes are fine when base 10 or 16 is specified. */
+    test_int64(teststr, 5, &teststr[5], 10, true, 123, 0);
+    test_int64(teststr, 5, &teststr[5], 16, true, 0x123, 0);
+
+    /* But means octal when base 0 is specified. */
+    test_int64(teststr, 5, &teststr[5], 8, true, 83, 0);
+    test_int64(teststr, 5, &teststr[5], 0, true, 83, 0);
+
+    /* Truncating before the NULL truncates. */
+    test_int64(teststr, 4, &teststr[4], 10, true, 12, 0);
+
+    /* Including the NULL or later results in true, pointing to it. */
+    test_int64(teststr, 6, &teststr[5], 10, true, 123, 0);
+    test_int64(teststr, 7, &teststr[5], 10, true, 123, 0);
+
+    /* UINT64_MAX is too large for an int64_t. */
+    WS_NONSTRING uint8_t uintmaxstr[20] = "18446744073709551615";
+    /* Yes, we can point to this address (C standard 6.5.6), so long as
+     * we don't dereference. &uintmaxstr[20] should be legal (6.5.3.2),
+     * though Coverity has sometimes complained. */
+    test_int64(uintmaxstr, 20, uintmaxstr + 20, 10, false, INT64_MAX, ERANGE);
+    uintmaxstr[19]++;
+    test_int64(uintmaxstr, 20, uintmaxstr + 20, 10, false, INT64_MAX, ERANGE);
+
+    /* INT64_MIN is the smallest int64_t. */
+    WS_NONSTRING uint8_t intminstr[20] = "-9223372036854775808";
+    test_int64(intminstr, 20, intminstr + 20, 10, true, INT64_MIN, 0);
+    /* Two's complement isn't symmetric. */
+    test_int64(&intminstr[1], 19, intminstr + 20, 10, false, INT64_MAX, ERANGE);
+    intminstr[19]--;
+    test_int64(&intminstr[1], 19, intminstr + 20, 10, true, INT64_MAX, 0);
+
+    /* Trailing whitespace is OK when end is specified. */
+    uintmaxstr[19] = ' ';
+    test_int64(uintmaxstr, 20, &uintmaxstr[19], 10, true, UINT64_MAX/10, 0);
+
+    /* Signs are ok. */
+    test_int64((const uint8_t*)"-1", 2, NULL, 10, true, -1, 0);
+    test_int64((const uint8_t*)"+1", 2, NULL, 10, true, 1, 0);
+
+    /* Go all the way to the end for very long strings when end != NULL */
+    WS_NONSTRING const uint8_t longstr[30] = "123456789012345678901234567890";
+    test_int64(longstr, 30, longstr + 30, 10, false, INT64_MAX, ERANGE);
+}
+
+static void test_ws_hexbuftoi64(void)
+{
+    WS_NONSTRING uint8_t hexstr[13] = "0x1234abcdefg";
+
+    /* Not decimal */
+    test_int64(hexstr, 8, NULL, 10, false, 0, EINVAL);
+    test_int64(&hexstr[2], 8, NULL, 10, false, 0, EINVAL);
+
+    /* Specifying base 16 works with or without the 0x */
+    test_int64(hexstr, 12, NULL, 16, true, 0x1234abcdef, 0);
+    test_int64(&hexstr[2], 10, NULL, 16, true, 0x1234abcdef, 0);
+
+    /* But base 0 only works with the prefix. */
+    test_int64(hexstr, 12, NULL, 0, true, 0x1234abcdef, 0);
+    test_int64(&hexstr[2], 12, NULL, 0, false, 0, EINVAL);
+
+    /* Upper case is also fine. */
+    hexstr[1] = 'X';
+    hexstr[6] = 'A';
+    test_int64(hexstr, 12, NULL, 16, true, 0x1234abcdef, 0);
+
+    /* The tricky edge case "0X" doesn't work with a NULL end. */
+    test_int64(hexstr, 2, NULL, 16, false, 0, EINVAL);
+    test_int64(hexstr, 2, NULL, 0, false, 0, EINVAL);
+
+    /* But it does with a non-NULL end, returning 0 and pointing end to x. */
+    test_int64(hexstr, 2, &hexstr[1], 16, true, 0, 0);
+    test_int64(hexstr, 2, &hexstr[1], 0, true, 0, 0);
+}
 int main(int argc, char **argv)
 {
     int ret;
@@ -1050,6 +1303,7 @@ int main(int argc, char **argv)
     g_test_add_func("/str_util/format_size", test_format_size);
     g_test_add_func("/str_util/format_units", test_format_units);
     g_test_add_func("/str_util/escape_string", test_escape_string);
+    g_test_add_func("/str_util/csv_value_is_formula", test_csv_value_is_formula);
     g_test_add_func("/str_util/strconcat", test_strconcat);
     g_test_add_func("/str_util/strsplit", test_strsplit);
     g_test_add_func("/str_util/str_ascii", test_str_ascii);
@@ -1088,6 +1342,12 @@ int main(int argc, char **argv)
     g_test_add_func("/strtoi/basebuftou64", test_ws_basebuftou64);
     g_test_add_func("/strtoi/basebuftou64_end", test_ws_basebuftou64_end);
     g_test_add_func("/strtoi/hexbuftou64", test_ws_hexbuftou64);
+    g_test_add_func("/strtoi/basebuftoi64", test_ws_basebuftoi64);
+    g_test_add_func("/strtoi/basebuftoi64_end", test_ws_basebuftoi64_end);
+    g_test_add_func("/strtoi/hexbuftoi64", test_ws_hexbuftoi64);
+
+    g_test_add_func("/sap_lzclzh_decompress", test_sap_lzclzh_decompress);
+    g_test_add_func("/sap_lzclzh_decompress/errors", test_sap_lzclzh_decompress_errors);
 
     ret = g_test_run();
 

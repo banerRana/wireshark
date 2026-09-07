@@ -645,16 +645,9 @@ _tvb_captured_length_remaining(const tvbuff_t *tvb, const unsigned offset)
 unsigned
 tvb_captured_length_remaining(const tvbuff_t *tvb, const unsigned offset)
 {
-	unsigned rem_length;
-	int   exception;
-
 	DISSECTOR_ASSERT(tvb && tvb->initialized);
 
-	exception = validate_offset_and_remaining(tvb, offset, &rem_length);
-	if (exception)
-		return 0;
-
-	return rem_length;
+	return _tvb_captured_length_remaining(tvb, offset);
 }
 
 unsigned
@@ -2129,6 +2122,170 @@ tvb_get_string_uint8(tvbuff_t *tvb, const unsigned offset, const unsigned length
 	return success;
 }
 
+bool
+tvb_get_string_int64(tvbuff_t *tvb, const unsigned offset, const unsigned length,
+		     const unsigned encoding, int64_t *value, unsigned *endoff)
+{
+	const uint8_t *ptr;
+	const uint8_t *endptr;
+	const uint8_t **endptrptr = endoff ? &endptr : NULL;
+	bool success;
+
+	validate_single_byte_ascii_encoding(encoding);
+
+	ptr = ensure_contiguous_unsigned(tvb, offset, length);
+
+	if (ptr == NULL) {
+		*value = 0;
+		if (endoff) {
+			*endoff = offset;
+		}
+		return false;
+	}
+
+	switch (encoding & ENC_STRING) {
+	case ENC_STR_HEX:
+		success = ws_hexbuftoi64(ptr, length, endptrptr, value);
+		break;
+	case ENC_STR_DEC:
+		success = ws_buftoi64(ptr, length, endptrptr, value);
+		break;
+	case ENC_STR_NUM:
+	default:
+		success = ws_basebuftoi64(ptr, length, endptrptr, value, 0);
+	}
+
+	if (endoff) {
+		// 0 <= endptr - ptr <= length
+		*endoff = offset + (uint32_t)(endptr - ptr);
+	}
+
+	return success;
+}
+
+bool
+tvb_get_string_int(tvbuff_t *tvb, const unsigned offset, const unsigned length,
+		   const unsigned encoding, int32_t *value, unsigned *endoff)
+{
+	const uint8_t *ptr;
+	const uint8_t *endptr;
+	const uint8_t **endptrptr = endoff ? &endptr : NULL;
+	bool success;
+
+	validate_single_byte_ascii_encoding(encoding);
+
+	ptr = ensure_contiguous_unsigned(tvb, offset, length);
+
+	if (ptr == NULL) {
+		*value = 0;
+		if (endoff) {
+			*endoff = offset;
+		}
+		return false;
+	}
+
+	switch (encoding & ENC_STRING) {
+	case ENC_STR_HEX:
+		success = ws_hexbuftoi32(ptr, length, endptrptr, value);
+		break;
+	case ENC_STR_DEC:
+		success = ws_buftoi32(ptr, length, endptrptr, value);
+		break;
+	case ENC_STR_NUM:
+	default:
+		success = ws_basebuftoi32(ptr, length, endptrptr, value, 0);
+	}
+
+	if (endoff) {
+		// 0 <= endptr - ptr <= length
+		*endoff = offset + (uint32_t)(endptr - ptr);
+	}
+
+	return success;
+}
+
+bool
+tvb_get_string_int16(tvbuff_t *tvb, const unsigned offset, const unsigned length,
+		    const unsigned encoding, int16_t *value, unsigned *endoff)
+{
+	const uint8_t *ptr;
+	const uint8_t *endptr;
+	const uint8_t **endptrptr = endoff ? &endptr : NULL;
+	bool success;
+
+	validate_single_byte_ascii_encoding(encoding);
+
+	ptr = ensure_contiguous_unsigned(tvb, offset, length);
+
+	if (ptr == NULL) {
+		*value = 0;
+		if (endoff) {
+			*endoff = offset;
+		}
+		return false;
+	}
+
+	switch (encoding & ENC_STRING) {
+	case ENC_STR_HEX:
+		success = ws_hexbuftoi16(ptr, length, endptrptr, value);
+		break;
+	case ENC_STR_DEC:
+		success = ws_buftoi16(ptr, length, endptrptr, value);
+		break;
+	case ENC_STR_NUM:
+	default:
+		success = ws_basebuftoi16(ptr, length, endptrptr, value, 0);
+	}
+
+	if (endoff) {
+		// 0 <= endptr - ptr <= length
+		*endoff = offset + (uint32_t)(endptr - ptr);
+	}
+
+	return success;
+}
+
+bool
+tvb_get_string_int8(tvbuff_t *tvb, const unsigned offset, const unsigned length,
+		    const unsigned encoding, int8_t *value, unsigned *endoff)
+{
+	const uint8_t *ptr;
+	const uint8_t *endptr;
+	const uint8_t **endptrptr = endoff ? &endptr : NULL;
+	bool success;
+
+	validate_single_byte_ascii_encoding(encoding);
+
+	ptr = ensure_contiguous_unsigned(tvb, offset, length);
+
+	if (ptr == NULL) {
+		*value = 0;
+		if (endoff) {
+			*endoff = offset;
+		}
+		return false;
+	}
+
+	switch (encoding & ENC_STRING) {
+	case ENC_STR_HEX:
+		success = ws_hexbuftoi8(ptr, length, endptrptr, value);
+		break;
+	case ENC_STR_DEC:
+		success = ws_buftoi8(ptr, length, endptrptr, value);
+		break;
+	case ENC_STR_NUM:
+	default:
+		success = ws_basebuftoi8(ptr, length, endptrptr, value, 0);
+	}
+
+	if (endoff) {
+		// 0 <= endptr - ptr <= length
+		*endoff = offset + (uint32_t)(endptr - ptr);
+	}
+
+	return success;
+}
+
 /*
  * Is the character a WSP character, as per RFC 5234?  (space or tab).
  */
@@ -2708,13 +2865,6 @@ _tvb_get_bits64_le(tvbuff_t *tvb, unsigned bit_offset, const unsigned total_no_o
 		}
 	}
 	return value;
-}
-
-/* Get 1 - 32 bits (should be deprecated as same as tvb_get_bits32??) */
-uint32_t
-tvb_get_bits(tvbuff_t *tvb, const unsigned bit_offset, const unsigned no_of_bits, const unsigned encoding)
-{
-	return (uint32_t)tvb_get_bits64(tvb, bit_offset, no_of_bits, encoding);
 }
 
 static bool
@@ -3499,7 +3649,20 @@ tvb_get_ts_23_038_7bits_string_packed(wmem_allocator_t *scope, tvbuff_t *tvb,
 	const unsigned bit_offset, unsigned no_of_chars)
 {
 	unsigned       in_offset = bit_offset >> 3; /* Current pointer to the input buffer */
-	unsigned       length = ((no_of_chars + 1) * 7 + (bit_offset & 0x07)) >> 3;
+	/* Calculate the number of bytes this will occupy without overflow.
+	 * The end result never overflow (although some compilers don't know
+	 * that and will warn about shortening absent an explicit cast), but
+	 * we must store the intermediate result in a wider type. */
+	unsigned length = (unsigned)((((uint64_t)no_of_chars + 1) * 7 + (bit_offset & 0x07)) >> 3);
+#if 0
+	/* Alternatively, on 32-bit architectures (or if we were doing the
+	 * same operation on 64-bit integers), we could divide by 8 first,
+	 * splitting no_of_chars into its quotient and remainder: */
+	unsigned       length = (no_of_chars >> 3) * 7;
+	/* Then calculate the number of bytes occupied by the remainder and bit
+	 * offset, rounded up. */
+	length += ((no_of_chars & 0x7 + 1) * 7 + (bit_offset & 0x7)) >> 3;
+#endif
 	const uint8_t *ptr;
 
 	DISSECTOR_ASSERT(tvb && tvb->initialized);
@@ -3537,7 +3700,20 @@ tvb_get_ascii_7bits_string(wmem_allocator_t *scope, tvbuff_t *tvb,
 	const unsigned bit_offset, unsigned no_of_chars)
 {
 	unsigned       in_offset = bit_offset >> 3; /* Current pointer to the input buffer */
-	unsigned       length = ((no_of_chars + 1) * 7 + (bit_offset & 0x07)) >> 3;
+	/* Calculate the number of bytes this will occupy without overflow.
+	 * The end result never overflow (although some compilers don't know
+	 * that and will warn about shortening absent an explicit cast), but
+	 * we must store the intermediate result in a wider type. */
+	unsigned length = (unsigned)((((uint64_t)no_of_chars + 1) * 7 + (bit_offset & 0x07)) >> 3);
+#if 0
+	/* Alternatively, on 32-bit architectures (or if we were doing the
+	 * same operation on 64-bit integers), we could divide by 8 first,
+	 * splitting no_of_chars into its quotient and remainder: */
+	unsigned       length = (no_of_chars >> 3) * 7;
+	/* Then calculate the number of bytes occupied by the remainder and bit
+	 * offset, rounded up. */
+	length += ((no_of_chars & 0x7 + 1) * 7 + (bit_offset & 0x7)) >> 3;
+#endif
 	const uint8_t *ptr;
 
 	DISSECTOR_ASSERT(tvb && tvb->initialized);
@@ -4079,19 +4255,6 @@ tvb_get_stringz_unichar2(wmem_allocator_t *scope, tvbuff_t *tvb, const unsigned 
  * functions that operate on strings that don't have a tvb_ equivalent.
  * That's hard to enforce, which is why this is deprecated.
  */
-const uint8_t *
-tvb_get_const_stringz(tvbuff_t *tvb, const unsigned offset, unsigned *lengthp)
-{
-	unsigned      size;
-	const uint8_t *strptr;
-
-	size   = tvb_strsize(tvb, offset);
-	strptr = ensure_contiguous_unsigned(tvb, offset, size);
-	if (lengthp)
-		*lengthp = size;
-	return strptr;
-}
-
 static char *
 tvb_get_ucs_2_stringz(wmem_allocator_t *scope, tvbuff_t *tvb, const unsigned offset, unsigned *lengthp, const unsigned encoding)
 {
@@ -5487,7 +5650,10 @@ tvb_get_varint(tvbuff_t *tvb, unsigned offset, unsigned maxlen, uint64_t *value,
 		DISSECTOR_ASSERT_NOT_REACHED();
 	}
 
-	return 0; /* 10 bytes scanned, but no bytes' msb is zero */
+	// We have scanned 10 bytes, but no bytes' msb is zero. We should probably
+	// return a nonzero value instead since we might be incrementing an offset
+	// inside a loop.
+	return 0;
 }
 
 /*

@@ -7,6 +7,8 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
+#define WS_LOG_DOMAIN LOG_DOMAIN_QTUI
+
 #include "main_application.h"
 #include "stratoshark_main_window.h"
 #include <ui/qt/widgets/capture_card_widget.h>
@@ -87,7 +89,7 @@ DIAG_ON(frame-larger-than=)
 #include <QUrl>
 
 #ifdef HAVE_LUA
-#include "lua_debugger_dialog.h"
+#include "lua_debugger.h"
 #endif
 
 // If we ever add support for multiple windows this will need to be replaced.
@@ -326,7 +328,10 @@ StratosharkMainWindow::StratosharkMainWindow(QWidget *parent) :
     freeze_focus_(NULL),
     was_maximized_(false),
     capture_stopping_(false),
-    capture_filter_valid_(false)
+    // An empty capture filter is valid (capture everything), and the filter box
+    // starts empty, so default to true. The widget reports false only once an
+    // invalid filter is actually typed.
+    capture_filter_valid_(true)
 #ifdef HAVE_LIBPCAP
     , capture_options_dialog_(NULL)
     , info_data_()
@@ -391,38 +396,29 @@ StratosharkMainWindow::StratosharkMainWindow(QWidget *parent) :
     //To prevent users use features before initialization complete
     //Otherwise unexpected problems may occur
     setFeaturesEnabled(false);
-    connect(mainApp, &MainApplication::appInitialized, this, [this]() { setFeaturesEnabled(); });
-    connect(mainApp, &MainApplication::appInitialized, this, &StratosharkMainWindow::applyGlobalCommandLineOptions);
-    connect(mainApp, &MainApplication::appInitialized, this, &StratosharkMainWindow::zoomText);
-    connect(mainApp, &MainApplication::appInitialized, this, &StratosharkMainWindow::initViewColorizeMenu);
-    connect(mainApp, &MainApplication::appInitialized, this, &StratosharkMainWindow::addStatsPluginsToMenu);
-    connect(mainApp, &MainApplication::appInitialized, this, &StratosharkMainWindow::addDynamicMenus);
-    connect(mainApp, &MainApplication::appInitialized, this, &StratosharkMainWindow::addPluginIFStructures);
-    connect(mainApp, &MainApplication::appInitialized, this, &StratosharkMainWindow::initConversationMenus);
-    connect(mainApp, &MainApplication::appInitialized, this, &StratosharkMainWindow::initFollowStreamMenus);
-    connect(mainApp, &MainApplication::appInitialized, this,
-            [=]() { addDisplayFilterTranslationActions(main_ui_->menuEditCopy); });
+    mainApp->whenInitialized(this, [this]() { onAppInitialized(); });
 
     connect(mainApp, &MainApplication::profileChanging, this, &StratosharkMainWindow::saveWindowGeometry);
     connect(mainApp, &MainApplication::preferencesChanged, this, &StratosharkMainWindow::layoutPanes);
     connect(mainApp, &MainApplication::preferencesChanged, this, &StratosharkMainWindow::layoutToolbars);
     connect(mainApp, &MainApplication::preferencesChanged, this, &StratosharkMainWindow::updatePreferenceActions);
-    connect(mainApp, &MainApplication::preferencesChanged, this, &StratosharkMainWindow::zoomText);
     connect(mainApp, &MainApplication::preferencesChanged, this, &StratosharkMainWindow::updateTitlebar);
 
     connect(WorkspaceState::instance(), &WorkspaceState::recentCaptureFilesChanged, this, &StratosharkMainWindow::updateRecentCaptures);
     connect(WorkspaceState::instance(), &WorkspaceState::recentFileStatusChanged, this, &StratosharkMainWindow::updateRecentCaptures);
     connect(mainApp, &MainApplication::preferencesChanged, this, &StratosharkMainWindow::updateRecentCaptures);
     updateRecentCaptures();
-    df_combo_box_ = new DisplayFilterCombo(this);
+    df_combo_box_ = new DisplayFilterEntry(this);
+
+    connect(df_combo_box_, &DisplayFilterEntry::filterPackets, this, &StratosharkMainWindow::applyFilter);
 
     funnel_statistics_ = new FunnelStatistics(this, capture_file_);
-    connect(df_combo_box_, &QComboBox::editTextChanged, funnel_statistics_, &FunnelStatistics::displayFilterTextChanged);
+    connect(df_combo_box_, &QLineEdit::textChanged, funnel_statistics_, &FunnelStatistics::displayFilterTextChanged);
     connect(funnel_statistics_, &FunnelStatistics::setDisplayFilter, this, &StratosharkMainWindow::setDisplayFilter);
     connect(funnel_statistics_, &FunnelStatistics::openCaptureFile, this,
             [=](QString cf_path, QString filter) { openCaptureFile(cf_path, filter); });
 
-    connect(df_combo_box_, &QComboBox::editTextChanged, this, &StratosharkMainWindow::updateDisplayFilterTranslationActions);
+    connect(df_combo_box_, &QLineEdit::textChanged, this, &StratosharkMainWindow::updateDisplayFilterTranslationActions);
 
     file_set_dialog_ = new FileSetDialog(this);
     connect(file_set_dialog_, &FileSetDialog::fileSetOpenCaptureFile, this, [=](QString cf_path) { openCaptureFile(cf_path); });
@@ -563,8 +559,8 @@ StratosharkMainWindow::StratosharkMainWindow(QWidget *parent) :
     updateRecentActions();
     setForCaptureInProgress(false);
 
-    setTabOrder(main_ui_->mainToolBar, df_combo_box_->lineEdit());
-    setTabOrder(df_combo_box_->lineEdit(), packet_list_);
+    setTabOrder(main_ui_->mainToolBar, df_combo_box_);
+    setTabOrder(df_combo_box_, packet_list_);
     setTabOrder(packet_list_, proto_tree_);
     setTabOrder(proto_tree_, data_source_tab_);
 
@@ -575,7 +571,6 @@ StratosharkMainWindow::StratosharkMainWindow(QWidget *parent) :
 
     connect(mainApp, &MainApplication::freezePacketList, packet_list_, &PacketList::freezePacketList);
     connect(mainApp, &MainApplication::columnsChanged, packet_list_, &PacketList::columnsChanged);
-    connect(mainApp, &MainApplication::colorsChanged, packet_list_, &PacketList::colorsChanged);
     connect(mainApp, &MainApplication::preferencesChanged, packet_list_, &PacketList::preferencesChanged);
     connect(mainApp, &MainApplication::recentPreferencesRead, this, &StratosharkMainWindow::applyRecentPaneGeometry);
     connect(mainApp, &MainApplication::recentPreferencesRead, this, &StratosharkMainWindow::updateRecentActions);
@@ -610,9 +605,6 @@ StratosharkMainWindow::StratosharkMainWindow(QWidget *parent) :
             packet_list_, &PacketList::setCaptureFile);
     connect(this, &StratosharkMainWindow::setCaptureFile,
             proto_tree_, &ProtoTree::setCaptureFile);
-
-    connect(mainApp, &MainApplication::zoomMonospaceFont, packet_list_, &PacketList::setMonospaceFont);
-    connect(mainApp, &MainApplication::zoomMonospaceFont, proto_tree_, &ProtoTree::setMonospaceFont);
 
     connectFileMenuActions();
     connectEditMenuActions();
@@ -780,8 +772,6 @@ void StratosharkMainWindow::addInterfaceToolbar(const iface_toolbar *toolbar_ent
     menu->insertAction(before, action);
 
     InterfaceToolbar *interface_toolbar = new InterfaceToolbar(this, toolbar_entry);
-    connect(mainApp, &MainApplication::appInitialized, interface_toolbar, &InterfaceToolbar::interfaceListChanged);
-    connect(mainApp, &MainApplication::localInterfaceListChanged, interface_toolbar, &InterfaceToolbar::interfaceListChanged);
 
     QToolBar *toolbar = new QToolBar(this);
     toolbar->addWidget(interface_toolbar);
@@ -850,7 +840,6 @@ void StratosharkMainWindow::updateStyleSheet()
 
 #endif
     welcome_page_->updateStyleSheets();
-    df_combo_box_->updateStyleSheet();
 }
 
 bool StratosharkMainWindow::eventFilter(QObject *obj, QEvent *event) {
@@ -862,8 +851,8 @@ bool StratosharkMainWindow::eventFilter(QObject *obj, QEvent *event) {
         QKeyEvent *kevt = static_cast<QKeyEvent *>(event);
         if (kevt->text().length() > 0 && kevt->text()[0].isPrint() &&
             !(kevt->modifiers() & Qt::ControlModifier)) {
-            df_combo_box_->lineEdit()->insert(kevt->text());
-            df_combo_box_->lineEdit()->setFocus();
+            df_combo_box_->insert(kevt->text());
+            df_combo_box_->setFocus();
             return true;
         }
     }
@@ -941,7 +930,7 @@ void StratosharkMainWindow::closeEvent(QCloseEvent *event) {
      * unwound. Running tryClosingCaptureFile() / mainApp->quit() with
      * the Lua dissector still on the C stack would tear down capture /
      * epan state and abort in wmem_cleanup_scopes() at exit. */
-    if (LuaDebuggerDialog::handleMainCloseIfPaused(event)) {
+    if (LuaDebugger::tryDeferMainWindowClose(event)) {
         return;
     }
 #endif
@@ -1800,21 +1789,21 @@ bool StratosharkMainWindow::tryClosingCaptureFile(QString before_what, FileClose
             QPushButton *discard_button;
 
             msg_dialog.setIcon(QMessageBox::Question);
-            msg_dialog.setWindowTitle(tr("Unsaved packets…"));
+            msg_dialog.setWindowTitle(tr("Unsaved events…"));
 
             /* This file has unsaved data or there's a capture in
                progress; ask the user whether to save the data. */
             if (capture_in_progress && context != Restart) {
-                question = tr("Do you want to stop the capture and save the captured packets%1?").arg(before_what);
-                infotext = tr("Your captured packets will be lost if you don't save them.");
+                question = tr("Do you want to stop the capture and save the captured events%1?").arg(before_what);
+                infotext = tr("Your captured events will be lost if you don't save them.");
             } else if (capture_file_.capFile()->is_tempfile) {
                 if (context == Reload) {
                     // Reloading a tempfile will keep the packets, so this is not unsaved packets
                     question = tr("Do you want to save the changes you've made%1?").arg(before_what);
                     infotext = tr("Your changes will be lost if you don't save them.");
                 } else {
-                    question = tr("Do you want to save the captured packets%1?").arg(before_what);
-                    infotext = tr("Your captured packets will be lost if you don't save them.");
+                    question = tr("Do you want to save the captured events%1?").arg(before_what);
+                    infotext = tr("Your captured events will be lost if you don't save them.");
                 }
             } else {
                 // No capture in progress and not a tempfile, so this is not unsaved packets
@@ -2406,9 +2395,6 @@ void StratosharkMainWindow::setForCapturedPackets(bool have_captured_packets)
     main_ui_->actionGoNextConversationPacket->setEnabled(have_captured_packets);
     main_ui_->actionGoPreviousConversationPacket->setEnabled(have_captured_packets);
 
-    main_ui_->actionViewZoomIn->setEnabled(have_captured_packets);
-    main_ui_->actionViewZoomOut->setEnabled(have_captured_packets);
-    main_ui_->actionViewNormalSize->setEnabled(have_captured_packets);
     main_ui_->actionViewResizeColumns->setEnabled(have_captured_packets);
     main_ui_->actionViewRedissect->setEnabled(have_captured_packets);
 
@@ -2783,12 +2769,6 @@ void StratosharkMainWindow::setMwFileName(QString fileName)
 #ifdef HAVE_LUA
 void StratosharkMainWindow::openLuaDebuggerDialog()
 {
-    LuaDebuggerDialog *dialog = LuaDebuggerDialog::instance(this);
-    if (dialog->isMinimized()) {
-        dialog->showNormal();
-    }
-    dialog->show();
-    dialog->raise();
-    dialog->activateWindow();
+    LuaDebugger::open(this);
 }
 #endif

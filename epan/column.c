@@ -423,6 +423,7 @@ column_dump_column_formats(void)
   "tshark.exe -o \"gui.column.format:"
     "\\\"No.\\\",\\\"%%m\\\","
     "\\\"Time\\\",\\\"%%t\\\","
+    "\\\"Delta\\\",\\\"%%Gt\\\","
     "\\\"Source\\\",\\\"%%s\\\","
     "\\\"Destination\\\",\\\"%%d\\\","
     "\\\"Protocol\\\",\\\"%%p\\\","
@@ -432,6 +433,7 @@ column_dump_column_formats(void)
   "tshark -o 'gui.column.format:"
     "\"No.\",\"%%m\","
     "\"Time\",\"%%t\","
+    "\"Delta\",\"%%Gt\","
     "\"Source\",\"%%s\","
     "\"Destination\",\"%%d\","
     "\"Protocol\",\"%%p\","
@@ -919,6 +921,8 @@ get_column_format_from_str(const char *str)
 {
   int i;
 
+  /* XXX - Should this handle the custom column special case instead of
+   * callers having to call strncmp(fmt, cust_format, cust_format_len) first? */
   for (i = 0; i < NUM_COL_FMTS; i++) {
     if (strcmp(str, col_format_to_string(i)) == 0)
       return i;
@@ -1210,6 +1214,7 @@ col_finalize(column_info *cinfo)
     }
 
     cinfo->col_expr.col_expr[i] = "";
+    cinfo->col_expr.col_expr_val[i][0] = '\0';
   }
 
   cinfo->col_expr.col_expr[i] = NULL;

@@ -409,6 +409,7 @@
      <addaction name="actionViewInternalsDissectorTables"/>
      <addaction name="actionViewInternalsSupportedProtocols"/>
      <addaction name="actionViewInternalsKeyboardShortcuts"/>
+     <addaction name="actionViewInternalsThemeDebug"/>
     </widget>
     <widget class="QMenu" name="menuAdditionalToolbars">
      <property name="title">
@@ -520,6 +521,7 @@
      <addaction name="actionStatisticsTcpStreamThroughput"/>
      <addaction name="actionStatisticsTcpStreamRoundTripTime"/>
      <addaction name="actionStatisticsTcpStreamWindowScaling"/>
+     <addaction name="actionStatisticsTcpStreamDedupTable"/>
     </widget>
     <widget class="QMenu" name="menuBACnet">
      <property name="title">
@@ -616,6 +618,7 @@
     <addaction name="actionStatisticsIOGraph"/>
     <addaction name="actionStatisticsPlot"/>
     <addaction name="menuServiceResponseTime"/>
+    <addaction name="actionStatisticsDistribution"/>
     <addaction name="separator"/>
     <addaction name="actionStatistics_REGISTER_STAT_GROUP_UNSORTED"/>
     <addaction name="menu29West"/>
@@ -842,7 +845,7 @@
    <addaction name="actionFileClose"/>
    <addaction name="actionViewReload"/>
    <addaction name="separator"/>
-   <addaction name="actionEditFindPacket"/>
+  <addaction name="actionEditFindPacket"/>
    <addaction name="actionGoPreviousPacket"/>
    <addaction name="actionGoNextPacket"/>
    <addaction name="actionGoGoToPacket"/>
@@ -1371,9 +1374,9 @@
    <property name="text">
     <string>Reload as File Format/Capture</string>
    </property>
-   <property name="shortcut">
-    <string notr="true">Ctrl+Shift+F</string>
-   </property>
+    <property name="shortcut">
+     <string notr="true">Ctrl+Shift+F</string>
+    </property>
   </action>
   <action name="actionCaptureOptions">
    <property name="text">
@@ -1867,6 +1870,14 @@
     <string>TCP time sequence graph (tcptrace)</string>
    </property>
   </action>
+  <action name="actionStatisticsTcpStreamDedupTable">
+   <property name="text">
+    <string>Duplication Table</string>
+   </property>
+   <property name="toolTip">
+    <string>TCP capture-level duplicate packet table</string>
+   </property>
+  </action>
   <action name="actionSCTPAnalyseThisAssociation">
    <property name="text">
     <string>Analyse this Association</string>
@@ -1936,6 +1947,14 @@
    </property>
    <property name="toolTip">
     <string>Collectd statistics</string>
+   </property>
+  </action>
+  <action name="actionStatisticsDistribution">
+   <property name="text">
+    <string>Distribution</string>
+   </property>
+   <property name="toolTip">
+    <string>Distribution statistics</string>
    </property>
   </action>
   <action name="actionStatisticsDNS">
@@ -2751,6 +2770,14 @@
     <string>Show the current keyboard shortcuts</string>
    </property>
   </action>
+  <action name="actionViewInternalsThemeDebug">
+   <property name="text">
+    <string>&amp;Theme Debug</string>
+   </property>
+   <property name="toolTip">
+    <string>Show the active theme, main window geometry, and live widget info</string>
+   </property>
+  </action>
   <action name="actionTelephonyGsmMapSummary">
    <property name="text">
     <string>MAP Summary</string>
@@ -2868,9 +2895,6 @@
    </property>
    <property name="text">
     <string>Aggregation in Live Capture</string>
-   </property>
-   <property name="toolTip">
-    <string>Aggregation View.</string>
    </property>
   </action>
   <action name="actionAnalyzeExpertInfo">

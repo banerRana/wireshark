@@ -21,8 +21,6 @@
 #include <QPushButton>
 #include <QTreeWidget>
 
-typedef struct if_stat_cache_s if_stat_cache_t;
-
 namespace Ui {
 class CaptureOptionsDialog;
 }
@@ -39,9 +37,9 @@ public:
     InterfaceTreeDelegate(QObject *parent = 0);
     ~InterfaceTreeDelegate();
 
-    QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &idx) const;
+    QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &idx) const override;
     void setTree(QTreeWidget* tree) { tree_ = tree; }
-    bool eventFilter(QObject *object, QEvent *event);
+    bool eventFilter(QObject *object, QEvent *event) override;
 
 signals:
     void filterChanged(const QString filter);
@@ -66,9 +64,11 @@ public slots:
     void interfaceSelected();
 
 protected:
-    virtual void showEvent(QShowEvent *);
+    virtual void showEvent(QShowEvent *) override;
 
 private slots:
+    /** @brief Subscribes to the window's InterfaceListManager's statistics updates. */
+    void connectInterfaceListManager();
     void on_capturePromModeCheckBox_toggled(bool checked);
     void on_captureMonitorModeCheckBox_toggled(bool checked);
     void on_gbStopCaptureAuto_toggled(bool checked);
@@ -86,14 +86,14 @@ private slots:
     void on_buttonBox_helpRequested();
     void filterEdited();
     void updateWidgets();
-    void updateStatistics(void);
+    /** @brief Repaints the traffic sparklines when InterfaceStatistics samples. */
+    void redrawStatistics();
     void refreshInterfaceList();
-    void updateLocalInterfaces();
     void browseButtonClicked();
     void interfaceItemChanged(QTreeWidgetItem *item, int column);
     void itemClicked(QTreeWidgetItem *item, int column);
     void itemDoubleClicked(QTreeWidgetItem *item, int column);
-    void changeEvent(QEvent* event);
+    void changeEvent(QEvent* event) override;
     void tempDirBrowseButtonClicked();
     void MBComboBoxIndexChanged(int index);
     void stopMBComboBoxIndexChanged(int index);
@@ -104,16 +104,12 @@ signals:
     void setSelectedInterfaces();
     void setFilterValid(bool valid, const QString capture_filter);
     void interfacesChanged();
-    void ifsChanged();
-    void interfaceListChanged();
     void captureFilterTextEdited(const QString & text);
     void showExtcapOptions(QString &device_name, bool startCaptureOnClose);
 
 private:
     Ui::CaptureOptionsDialog *ui;
 
-    if_stat_cache_t *stat_cache_;
-    QTimer *stat_timer_;
     InterfaceTreeDelegate interface_item_delegate_;
 
     interface_t *getDeviceByName(const QString device_name);

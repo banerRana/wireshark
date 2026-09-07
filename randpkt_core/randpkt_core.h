@@ -16,19 +16,21 @@
 #include <glib.h>
 #include "wiretap/wtap.h"
 
+/**
+ * @brief Defines a single random packet example type for the randpkt generator.
+ */
 typedef struct {
-	const char*  abbrev;
-	const char*  longname;
-	int          produceable_type;
-	int          sample_wtap_encap;
-	uint8_t*     sample_buffer;
-	int          sample_length;
-	uint8_t*     pseudo_buffer;
-	unsigned     pseudo_length;
-	wtap_dumper* dump;
-	const char*  filename;
-	unsigned     produce_max_bytes;
-
+    const char*  abbrev;            /**< Short abbreviation identifying this example type (e.g. "dns", "tcp"). */
+    const char*  longname;          /**< Human-readable full name of this example type. */
+    int          produceable_type;  /**< Encapsulation type used when producing packets for this example. */
+    int          sample_wtap_encap; /**< wtap encapsulation type associated with this example's sample data. */
+    uint8_t*     sample_buffer;     /**< Pointer to the raw bytes of the sample packet template. */
+    int          sample_length;     /**< Length in bytes of the sample packet template in @p sample_buffer. */
+    uint8_t*     pseudo_buffer;     /**< Pointer to the pseudo-header bytes prepended to the generated packet. */
+    unsigned     pseudo_length;     /**< Length in bytes of the pseudo-header in @p pseudo_buffer. */
+    wtap_dumper* dump;              /**< Handle to the wtap dumper used to write generated packets to file. */
+    const char*  filename;          /**< Path to the output file where generated packets are written. */
+    unsigned     produce_max_bytes; /**< Maximum number of bytes to produce per generated packet. */
 } randpkt_example;
 
 /* Return the number of active examples */
@@ -40,10 +42,20 @@ typedef struct {
  */
 unsigned randpkt_example_count(void);
 
-/* Return the list of the active examples */
+/**
+ * @brief Returns the list of active examples, including their abbreviations and long names.
+ *
+ * @param abbrev_list Pointer to a list where the abbreviations of the examples will be stored.
+ * @param longname_list Pointer to a list where the long names of the examples will be stored.
+ */
 void randpkt_example_list(char*** abbrev_list, char*** longname_list);
 
-/* Parse command-line option "type" and return enum type */
+/**
+ * @brief Parse command-line option "type" and return enum type
+ *
+ * @param string The string to parse, which may be NULL or empty to indicate a random type.
+ * @return The enum type corresponding to the string, or a random type if the string is NULL or empty. Returns -1 if the type is not known.
+ */
 int randpkt_parse_type(char *string);
 
 /**
@@ -55,6 +67,18 @@ int randpkt_parse_type(char *string);
 randpkt_example* randpkt_find_example(int type);
 
 /* Init a new example */
+/**
+ * @brief Initializes a random packet example with parameters for packet production.
+ *
+ * This function initializes the necessary structures and opens the file or standard output
+ * to begin producing random packets.
+ *
+ * @param example Pointer to the randpkt_example structure to be initialized.
+ * @param produce_filename The filename where packets will be written, or "-" for stdout.
+ * @param produce_max_bytes The maximum number of bytes per packet.
+ * @param file_type_subtype The type and subtype of the file format.
+ * @return 0 on success, non-zero on failure.
+ */
 int randpkt_example_init(randpkt_example* example, char* produce_filename, int produce_max_bytes, int file_type_subtype);
 
 /* Loop the packet generation */

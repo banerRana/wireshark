@@ -7,10 +7,7 @@
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
-
-#ifndef __ADDRESS_TYPES_H__
-#define __ADDRESS_TYPES_H__
-
+#pragma once
 #include "address.h"
 
 #ifdef __cplusplus
@@ -133,12 +130,27 @@ int ether_len(void);
  * if the vendor is known, or a full MAC address string otherwise.
  */
 const char* ether_name_resolution_str(const address* addr);
+
+/**
+ * @brief Returns the length of the Ethernet name resolution.
+ *
+ * @return The maximum address string length.
+ */
 int ether_name_resolution_len(void);
-
-
 
 /* XXX - Temporary?  Here at least until all of the address type handling is finalized
  * Otherwise should be folded into address_types.c or just be handled with function pointers
+ */
+/**
+ * @brief Return a display‑filter string for the given address and direction.
+ *
+ * Produces a column‑filter expression appropriate for the specified address,
+ * indicating either a source or destination field depending on @p src.
+ *
+ * @param addr  The address to convert into a filter string.
+ * @param src   true for a source‑address filter, false for destination.
+ *
+ * @return The column filter string, or an empty string if not found.
  */
 const char* address_type_column_filter_string(const address* addr, bool src);
 
@@ -146,8 +158,6 @@ const char* address_type_column_filter_string(const address* addr, bool src);
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
-#endif /* __ADDRESS_TYPES_H__ */
 
 /*
  * Editor modelines  -  https://www.wireshark.org/tools/modelines.html

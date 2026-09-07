@@ -304,6 +304,13 @@ static const value_string format_vals[] = {
 #define PGSQL_CANCELREQUEST 80877102
 #define PGSQL_SSLREQUEST    80877103
 #define PGSQL_GSSENCREQUEST 80877104
+/* Version 3.0 is used between PG7.4 and PG17.
+ * Version 3.2 is used by PG18.
+ * We set our maximum to 3.9999, which is used as protocol "grease" by PG19
+ * beta.
+ */
+#define PGSQL_VERSION_MIN   0x30000
+#define PGSQL_VERSION_MAX   0x3270f
 
 static const value_string request_code_vals[] = {
     { PGSQL_CANCELREQUEST, "CancelRequest" },
@@ -483,7 +490,8 @@ static void dissect_pgsql_logical_be_msg(int32_t length, tvbuff_t *tvb, int n, p
 {
     proto_tree *shrub;
     proto_item *ti;
-    int siz, content_length, leftover;
+    unsigned siz;
+    int content_length, leftover;
     uint32_t i;
 
     unsigned char message_type = tvb_get_uint8(tvb, n);
@@ -526,7 +534,6 @@ static void dissect_pgsql_logical_be_msg(int32_t length, tvbuff_t *tvb, int n, p
         siz = tvb_strsize(tvb, n);
         proto_tree_add_item(shrub, hf_logical_message_prefix, tvb, n, siz, ENC_ASCII);
         n += siz;
-        content_length = tvb_strsize(tvb, n);
         proto_tree_add_item_ret_int(shrub, hf_logical_message_length, tvb, n, 4, ENC_BIG_ENDIAN, &content_length);
         n += 4;
         proto_tree_add_item(shrub, hf_logical_message_content, tvb, n, content_length, ENC_ASCII);
@@ -1025,8 +1032,36 @@ static void dissect_pgsql_fe_msg(unsigned char type, unsigned length, tvbuff_t *
         n += 4;
         length -= n;
         switch (i) {
-        /* Startup message */
-        case 196608:
+        case PGSQL_SSLREQUEST:
+            proto_tree_add_item(tree, hf_request_code, tvb, n-4, 4, ENC_BIG_ENDIAN);
+            /* Next reply will be a single byte. */
+            wmem_tree_insert32(conv_data->state_tree, pinfo->num, GUINT_TO_POINTER(PGSQL_AUTH_SSL_REQUESTED));
+            break;
+
+        case PGSQL_GSSENCREQUEST:
+            proto_tree_add_item(tree, hf_request_code, tvb, n-4, 4, ENC_BIG_ENDIAN);
+            /* Next reply will be a single byte. */
+            wmem_tree_insert32(conv_data->state_tree, pinfo->num, GUINT_TO_POINTER(PGSQL_AUTH_GSSENC_REQUESTED));
+            break;
+
+        case PGSQL_CANCELREQUEST:
+            proto_tree_add_item(tree, hf_request_code, tvb, n-4, 4, ENC_BIG_ENDIAN);
+            proto_tree_add_item(tree, hf_pid, tvb, n,   4, ENC_BIG_ENDIAN);
+            proto_tree_add_item(tree, hf_key, tvb, n+4, 4, ENC_BIG_ENDIAN);
+            break;
+
+        default:
+            /* Startup message contains the major+minor version in the first 4
+             * bytes.
+             * Between PG7.4 and PG17, the protocol version used was 3.0. In
+             * PG18, this version was bumped to 3.2.
+             * To handle future protocol version bumps, we check if the version
+             * is between PGSQL_VERSION_MIN and PGSQL_VERSION_MAX. We use
+             * 3.9999 as PGSQL_VERSION_MAX since it is used as protocol "grease"
+             * during PG19 beta.
+             */
+            if (i < PGSQL_VERSION_MIN || i > PGSQL_VERSION_MAX)
+                break;
             proto_tree_add_item(tree, hf_version_major, tvb, n-4, 2, ENC_BIG_ENDIAN);
             proto_tree_add_item(tree, hf_version_minor, tvb, n-2, 2, ENC_BIG_ENDIAN);
             while ((signed)length > 0) {
@@ -1044,24 +1079,6 @@ static void dissect_pgsql_fe_msg(unsigned char type, unsigned length, tvbuff_t *
                 if (length == 1 && tvb_get_uint8(tvb, n) == 0)
                     break;
             }
-            break;
-
-        case PGSQL_SSLREQUEST:
-            proto_tree_add_item(tree, hf_request_code, tvb, n-4, 4, ENC_BIG_ENDIAN);
-            /* Next reply will be a single byte. */
-            wmem_tree_insert32(conv_data->state_tree, pinfo->num, GUINT_TO_POINTER(PGSQL_AUTH_SSL_REQUESTED));
-            break;
-
-        case PGSQL_GSSENCREQUEST:
-            proto_tree_add_item(tree, hf_request_code, tvb, n-4, 4, ENC_BIG_ENDIAN);
-            /* Next reply will be a single byte. */
-            wmem_tree_insert32(conv_data->state_tree, pinfo->num, GUINT_TO_POINTER(PGSQL_AUTH_GSSENC_REQUESTED));
-            break;
-
-        case PGSQL_CANCELREQUEST:
-            proto_tree_add_item(tree, hf_request_code, tvb, n-4, 4, ENC_BIG_ENDIAN);
-            proto_tree_add_item(tree, hf_pid, tvb, n,   4, ENC_BIG_ENDIAN);
-            proto_tree_add_item(tree, hf_key, tvb, n+4, 4, ENC_BIG_ENDIAN);
             break;
         }
         break;
@@ -1113,7 +1130,8 @@ static void dissect_pgsql_be_msg(unsigned char type, unsigned length, tvbuff_t *
                                  pgsql_conn_data_t *conv_data)
 {
     unsigned char c;
-    int i, siz;
+    int i;
+    unsigned siz;
     int32_t num_nonsupported_options;
     proto_item *ti;
     proto_tree *shrub;
@@ -1408,7 +1426,7 @@ dissect_pgsql_msg(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* dat
                 typestr = "SSL request";
             else if (length == 8 && tag == PGSQL_GSSENCREQUEST)
                 typestr = "GSS encrypt request";
-            else if (tag == 196608)
+            else if (tag >= PGSQL_VERSION_MIN && tag <= PGSQL_VERSION_MAX)
                 typestr = "Startup message";
             else
                 typestr = "Unknown";

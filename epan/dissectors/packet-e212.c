@@ -16,8 +16,8 @@
 
 #include <epan/packet.h>
 
-#include <wsutil/strtoi.h>
 #include <wsutil/array.h>
+#include <epan/tap.h>
 
 #include "packet-e212.h"
 #include "expert.h"
@@ -3938,6 +3938,7 @@ static const value_string mcc_mnc_3digits_codes[] = {
 value_string_ext mcc_mnc_3digits_codes_ext = VALUE_STRING_EXT_INIT(mcc_mnc_3digits_codes);
 
 static int proto_e212;
+static int imsi_tap;
 static int hf_E212_imsi;
 static int hf_e212_assoc_imsi;
 static int hf_E212_mcc;
@@ -4374,42 +4375,54 @@ dissect_e212_mcc_mnc_high_nibble(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tr
 int
 dissect_e212_mcc_mnc_in_utf8_address(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, int offset)
 {
+    proto_item *item;
     uint16_t mcc = 0, mnc = 0;
     char   *mcc_str, *mnc_str;
-    bool        long_mnc = false;
+    bool    bad_mcc = false;
+    bool    bad_mnc = false;
+    bool    long_mnc = false;
 
-    ws_strtou16((char*)tvb_get_string_enc(pinfo->pool, tvb, offset, 3, ENC_UTF_8),
-        NULL, &mcc);
-    ws_strtou16((char*)tvb_get_string_enc(pinfo->pool, tvb, offset + 3, 2, ENC_UTF_8),
-        NULL, &mnc);
+    if (!tvb_get_string_uint16(tvb, offset, 3, ENC_STR_DEC, &mcc, NULL)) {
+        bad_mcc = true;
+    }
+    if (!tvb_get_string_uint16(tvb, offset + 3, 2, ENC_STR_DEC, &mnc, NULL)) {
+        bad_mnc = true;
+    }
 
     /* Try to match the MCC and 2 digits MNC with an entry in our list of operators */
     if (!try_val_to_str_ext(mcc * 100 + mnc, &mcc_mnc_2digits_codes_ext)) {
         if (tvb_reported_length_remaining(tvb, offset + 3) > 2) {
-            ws_strtou16((char*)tvb_get_string_enc(pinfo->pool, tvb, offset + 3, 3, ENC_UTF_8),
-                NULL, &mnc);
+            if (!tvb_get_string_uint16(tvb, offset + 3, 3, ENC_STR_DEC, &mnc, NULL)) {
+                bad_mnc = true;
+            }
             long_mnc = true;
         }
     }
 
     mcc_str = wmem_strdup_printf(pinfo->pool, "%03u", mcc);
-    proto_tree_add_string_format_value(tree, hf_E212_mcc, tvb,
+    item = proto_tree_add_string_format_value(tree, hf_E212_mcc, tvb,
                                        offset, 3, mcc_str, "%s (%s)",
                                        val_to_str_ext_const(mcc, &E212_codes_ext, "Unknown"),
                                        mcc_str);
+    if (bad_mcc) {
+        expert_add_info(pinfo, item, &ei_E212_mcc_non_decimal);
+    }
 
     if (long_mnc){
         mnc_str = wmem_strdup_printf(pinfo->pool, "%03u", mnc);
-        proto_tree_add_string_format_value(tree, hf_E212_mnc, tvb, offset + 3, 3, mnc_str,
+        item = proto_tree_add_string_format_value(tree, hf_E212_mnc, tvb, offset + 3, 3, mnc_str,
                    "%s (%s)",
                    val_to_str_ext_const(mcc * 1000 + mnc, &mcc_mnc_3digits_codes_ext, "Unknown1"),
                    mnc_str);
     }else{
         mnc_str = wmem_strdup_printf(pinfo->pool, "%02u", mnc);
-        proto_tree_add_string_format_value(tree, hf_E212_mnc, tvb, offset + 3, 2, mnc_str,
+        item = proto_tree_add_string_format_value(tree, hf_E212_mnc, tvb, offset + 3, 2, mnc_str,
                    "%s (%s)",
                    val_to_str_ext_const(mcc * 100 + mnc, &mcc_mnc_2digits_codes_ext, "Unknown2"),
                    mnc_str);
+    }
+    if (bad_mnc) {
+        expert_add_info(pinfo, item, &ei_E212_mnc_non_decimal);
     }
 
     if (long_mnc)
@@ -4438,11 +4451,47 @@ is_imsi_string_valid(const char *imsi_str)
     return true;
 }
 
+/* Strict check: valid length AND all digits 0-9. Used to guard the tap. */
+static bool
+is_imsi(const char *imsi_str)
+{
+    size_t len;
+
+    if (imsi_str == NULL)
+        return false;
+    len = strlen(imsi_str);
+    if (len < 5 || len > 15)
+        return false;
+    for (size_t i = 0; i < len; i++) {
+        if (imsi_str[i] < '0' || imsi_str[i] > '9')
+            return false;
+    }
+    return true;
+}
+
+/* Fire the "imsi" tap if imsi_str is a valid numeric IMSI */
+static void
+queue_imsi_tap(packet_info *pinfo, const char *imsi_str)
+{
+    if (is_imsi(imsi_str)) {
+        tap_imsi_info_t *tap_info = wmem_new0(pinfo->pool, tap_imsi_info_t);
+        tap_info->frame_number = pinfo->num;
+        tap_info->imsi = wmem_strdup(pinfo->pool, imsi_str);
+        copy_address_shallow(&tap_info->src_addr, &pinfo->src);
+        copy_address_shallow(&tap_info->dst_addr, &pinfo->dst);
+        tap_info->protocol = pinfo->current_proto;
+        tap_queue_packet(imsi_tap, pinfo, tap_info);
+    }
+}
+
 void
-add_assoc_imsi_item(tvbuff_t *tvb _U_, proto_tree *tree, const char* imsi_str) {
+add_assoc_imsi_item(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, const char* imsi_str) {
     proto_item *item;
+
     item = proto_tree_add_string(tree, hf_e212_assoc_imsi, tvb, 0, 0, imsi_str);
     proto_item_set_generated(item);
+
+    queue_imsi_tap(pinfo, imsi_str);
 }
 
 
@@ -4483,6 +4532,8 @@ dissect_e212_imsi(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offse
     proto_item_set_generated(item);
     subtree = proto_item_add_subtree(item, ett_e212_imsi);
 
+    queue_imsi_tap(pinfo, imsi_str);
+
     if(skip_first) {
         dissect_e212_mcc_mnc_high_nibble(tvb, pinfo, subtree, offset);
     } else {
@@ -4507,6 +4558,8 @@ dissect_e212_utf8_imsi(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int 
     }
     item = proto_tree_add_string(tree, hf_e212_assoc_imsi, tvb, offset, length, imsi_str);
     proto_item_set_generated(item);
+
+    queue_imsi_tap(pinfo, imsi_str);
 
     subtree = proto_item_add_subtree(item, ett_e212_imsi);
 
@@ -4695,6 +4748,7 @@ proto_register_e212(void)
     expert_e212 = expert_register_protocol(proto_e212);
     expert_register_field_array(expert_e212, ei, array_length(ei));
 
+    imsi_tap = register_tap("imsi");
 }
 
 /*

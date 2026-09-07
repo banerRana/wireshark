@@ -27,6 +27,7 @@
 #include <ui/urls.h>
 #include <wsutil/time_util.h>
 #include <wsutil/filesystem.h>
+#include <wsutil/ws_assert.h>
 #include <wsutil/privileges.h>
 #include <wsutil/socket.h>
 #include <wsutil/wslog.h>
@@ -64,7 +65,6 @@
 #include "epan/srt_table.h"
 
 #include "ui/alert_box.h"
-#include "ui/iface_lists.h"
 #include "ui/language.h"
 #include "ui/persfilepath_opt.h"
 #include "ui/recent.h"
@@ -81,7 +81,7 @@
 #include "ui/plugins/include/uiqt_plugin.h"
 
 #include "ui/qt/conversation_dialog.h"
-#include "ui/qt/utils/color_utils.h"
+#include "ui/qt/utils/theme_manager.h"
 #include "ui/qt/coloring_rules_dialog.h"
 #include "ui/qt/endpoint_dialog.h"
 #include "ui/qt/glib_mainloop_on_qeventloop.h"
@@ -94,6 +94,7 @@
 #include "ui/qt/wireshark_application.h"
 #include "ui/qt/utils/workspace_state.h"
 #include "ui/qt/utils/software_update.h"
+#include <ui/qt/manager/interface_list_manager.h>
 
 #include "capture/capture-pcap-util.h"
 
@@ -137,6 +138,12 @@ void exit_application(int status) {
         // or similar, e.g. with a QTimer
         wsApp->quit();
     }
+
+#ifdef __HAIKU__
+    /* deregister log writer on exit */
+    qInstallMessageHandler(0);
+#endif
+
     // Calling stdlib exit here does not call the wsApp destructor.
     exit(status);
 }
@@ -260,7 +267,7 @@ gather_wireshark_runtime_info(feature_list l)
 
     if (mainApp) {
         // Display information
-        const char *display_mode = ColorUtils::themeIsDark() ? "dark" : "light";
+        const char *display_mode = ThemeManager::isDark() ? "dark" : "light";
         with_feature(l, "%s display mode", display_mode);
 
         int hidpi_count = 0;
@@ -402,66 +409,7 @@ win32_reset_library_path(void)
 }
 #endif
 
-#ifdef Q_OS_MAC
-// Try to work around
-//
-//     https://gitlab.com/wireshark/wireshark/-/issues/17075
-//
-// aka
-//
-//     https://bugreports.qt.io/browse/QTBUG-87014
-//
-// The fix at
-//
-//     https://codereview.qt-project.org/c/qt/qtbase/+/322228/3/src/plugins/platforms/cocoa/qnsview_drawing.mm
-//
-// enables layer backing if we're running on Big Sur OR we're running on
-// Catalina AND we were built with the Catalina SDK. Enable layer backing
-// here by setting QT_MAC_WANTS_LAYER=1, but only if we're running on Big
-// Sur and our version of Qt doesn't have a fix for QTBUG-87014.
-#include <QOperatingSystemVersion>
-static inline void
-macos_enable_layer_backing(void)
-{
-    // At the time of this writing, the QTBUG-87014 for layerEnabledByMacOS is...
-    //
-    // ...in https://github.com/qt/qtbase/blob/5.15/src/plugins/platforms/cocoa/qnsview_drawing.mm
-    // ...not in https://github.com/qt/qtbase/blob/5.15.2/src/plugins/platforms/cocoa/qnsview_drawing.mm
-    // ...not in https://github.com/qt/qtbase/blob/6.0/src/plugins/platforms/cocoa/qnsview_drawing.mm
-    // ...not in https://github.com/qt/qtbase/blob/6.0.0/src/plugins/platforms/cocoa/qnsview_drawing.mm
-    //
-    // We'll assume that it will be fixed in 5.15.3, 6.0.1, and >= 6.1.
-#if  \
-        ((QT_VERSION >= QT_VERSION_CHECK(5, 15, 0) &&  QT_VERSION < QT_VERSION_CHECK(5, 15, 3)) \
-        || (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0) &&  QT_VERSION < QT_VERSION_CHECK(6, 0, 1)) \
-    )
-    QOperatingSystemVersion os_ver = QOperatingSystemVersion::current();
-    int major_ver = os_ver.majorVersion();
-    int minor_ver = os_ver.minorVersion();
-    if ( (major_ver == 10 && minor_ver >= 16) || major_ver >= 11 ) {
-        if (qgetenv("QT_MAC_WANTS_LAYER").isEmpty()) {
-            qputenv("QT_MAC_WANTS_LAYER", "1");
-        }
-    }
-#endif
-}
-#endif
-
 #ifdef HAVE_LIBPCAP
-static GList *
-capture_opts_get_interface_list(int *err, char **err_str)
-{
-    if (mainApp) {
-        GList *if_list = mainApp->getInterfaceList();
-        if (if_list == NULL) {
-            if_list = capture_interface_list(global_capture_opts.app_name, err, err_str, main_window_update);
-            mainApp->setInterfaceList(if_list);
-        }
-        return if_list;
-    }
-    return capture_interface_list(global_capture_opts.app_name, err, err_str, main_window_update);
-}
-
 static void
 commandline_capture_interface_options(FILE* const output)
 {
@@ -536,38 +484,6 @@ int main(int argc, char *qt_argv[])
 
     /* Set the program name. */
     g_set_prgname("wireshark");
-
-#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
-    /*
-     * See:
-     *
-     *    issue #16908;
-     *
-     *    https://doc.qt.io/qt-5/qvector.html#maximum-size-and-out-of-memory-conditions
-     *
-     *    https://forum.qt.io/topic/114950/qvector-realloc-throwing-sigsegv-when-very-large-surface3d-is-rendered
-     *
-     * for why we're doing this; the widget we use for the packet list
-     * uses QVector, so those limitations apply to it.
-     *
-     * Apparently, this will be fixed in Qt 6:
-     *
-     *    https://github.com/qt/qtbase/commit/215ca735341b9487826023a7983382851ce8bf26
-     *
-     *    https://github.com/qt/qtbase/commit/2a6cdec718934ca2cc7f6f9c616ebe62f6912123#diff-724f419b0bb0487c2629bb16cf534c4b268ddcee89b5177189b607f940cfd83dR192
-     *
-     * Hopefully QList won't cause any performance hits relative to
-     * QVector.
-     *
-     * We pick 53 million records as a value that should avoid the problem;
-     * see the Wireshark issue for why that value was chosen.
-     */
-    cf_set_max_records(53000000);
-#endif
-
-#ifdef Q_OS_MAC
-    macos_enable_layer_backing();
-#endif
 
     cmdarg_err_init(wireshark_cmdarg_err, wireshark_cmdarg_err_cont);
 
@@ -720,29 +636,14 @@ int main(int argc, char *qt_argv[])
     win32_reset_library_path();
 #endif
 
-    // Handle DPI scaling on Windows. This causes problems in at least
-    // one case on X11 and we don't yet support Android.
-    // We do the equivalent on macOS by setting NSHighResolutionCapable
-    // in Info.plist.
-    // Note that this enables Windows 8.1-style Per-monitor DPI
-    // awareness but not Windows 10-style Per-monitor v2 awareness.
-    // https://doc.qt.io/qt-5/scalability.html
-    // https://doc.qt.io/qt-5/highdpi.html
-    // https://bugreports.qt.io/browse/QTBUG-53022 - The device pixel ratio is pretty much bogus on Windows.
-    // https://bugreports.qt.io/browse/QTBUG-55510 - Windows have wrong size
-    //
-    // Deprecated in Qt6, which is Per-Monitor DPI Aware V2 by default.
-    //    warning: 'Qt::AA_EnableHighDpiScaling' is deprecated: High-DPI scaling is always enabled.
-    //    This attribute no longer has any effect.
-#if defined(Q_OS_WIN) && QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
-    QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
-#endif
-
-    // This function must be called before creating the application object.
-    // Qt::HighDpiScaleFactorRoundingPolicy::PassThrough is the default in Qt6,
-    // so this doesn't have any effect (Round is the default in 5.14 & 5.15)
-#if defined(Q_OS_WIN)
-    QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
+    /* The Qt Windows platform plugin provides the ability to detect the AltGr key.
+     * Without this, AltGr maps to Ctrl+Alt on Windows which may triggers shortcuts instead of
+     * entering special characters into text fields.
+     *
+     * Enabling the AltGr detection by setting the QT_QPA_PLATFORM environment variable.
+     * This setting can still be overridden by specifying the `-platform` command line parameter. */
+#ifdef _WIN32
+     g_setenv("QT_QPA_PLATFORM", "windows:altgr", 0);
 #endif
 
     /* Create The Wireshark app */
@@ -817,7 +718,7 @@ int main(int argc, char *qt_argv[])
 #ifdef HAVE_LIBPCAP
     /* Set the initial values in the capture options. This might be overwritten
        by preference settings and then again by the command line parameters. */
-    capture_opts_init(&global_capture_opts, application_flavor_name_lower(), capture_opts_get_interface_list);
+    capture_opts_init(&global_capture_opts, InterfaceListManager::cachedInterfaceList);
 #endif
 
     /*
@@ -905,7 +806,16 @@ int main(int argc, char *qt_argv[])
 
     /* Register the extcap preferences. We do this after seeing if the
      * capture_no_extcap preference is set in the configuration file
-     * or command line. This will re-read the extcap specific preferences.
+     * or command line. Unless that preference is set, this will load
+     * the extcap interface list and read the extcap specific preferences
+     * from "extcap.cfg".
+     *
+     * XXX - Note that even if prefs.capture_no_interface_load is set the
+     * extcaps are still loaded here, so long as capture_no_extcap isn't set.
+     * Maybe they shouldn't be? (Although we'd want to at least make sure
+     * that the configuration file is registered, so that it is properly
+     * copied if the profile is copied, at least so long as the extcap
+     * configuration file is per-profile.)
      */
 #ifdef DEBUG_STARTUP_TIME
     ws_log(LOG_DOMAIN_MAIN, LOG_LEVEL_INFO, "Calling extcap_register_preferences, elapsed time %" PRIu64 " us \n", g_get_monotonic_time() - start_time);
@@ -914,7 +824,8 @@ int main(int argc, char *qt_argv[])
     extcap_register_preferences(splash_update, NULL);
 
     /* Apply the extcap command line options now that the extcap preferences
-     * are loaded.
+     * are loaded. (If they weren't loaded, there would be an error about
+     * unknown preferences.)
      */
     commandline_options_apply_extcap();
 
@@ -929,7 +840,7 @@ int main(int argc, char *qt_argv[])
     /* Now get our remaining args */
 
     /* XXX: Processing interface options on the command line might retrieve
-     * interface list. We don't yet know if we will need to retrieve the
+     * the interface list. We don't yet know if we will need to retrieve the
      * interface capabilities as well (e.g. are we printing capabilities,
      * or loading the interface list?) until we parse other options, like
      * whether we have a capture file.
@@ -999,7 +910,7 @@ int main(int argc, char *qt_argv[])
             if_cap_queries = g_list_prepend(if_cap_queries, if_cap_query);
         }
         if_cap_queries = g_list_reverse(if_cap_queries);
-        capability_hash = capture_get_if_list_capabilities(global_capture_opts.app_name, if_cap_queries, &err_str, &err_str_secondary, NULL);
+        capability_hash = capture_get_if_list_capabilities(if_cap_queries, &err_str, &err_str_secondary, NULL);
         g_list_free_full(if_cap_queries, g_free);
         for (i = 0; i < global_capture_opts.ifaces->len; i++) {
             interface_options *interface_opts;
@@ -1027,12 +938,25 @@ int main(int argc, char *qt_argv[])
     }
 
 #ifdef DEBUG_STARTUP_TIME
-    ws_log(LOG_DOMAIN_MAIN, LOG_LEVEL_INFO, "Calling fill_in_local_interfaces, elapsed time %" PRIu64 " us \n", g_get_monotonic_time() - start_time);
+    ws_log(LOG_DOMAIN_MAIN, LOG_LEVEL_INFO, "Preparing InterfaceListManager, elapsed time %" PRIu64 " us \n", g_get_monotonic_time() - start_time);
 #endif
     splash_update(RA_INTERFACES, NULL, NULL);
 
     if (cf_name.isEmpty() && !prefs.capture_no_interface_load) {
-        wsApp->scanLocalInterfaces(nullptr);
+        // If we're not loading a capture file, then schedule loading the
+        // interfaces unless the "don't load the interfaces at startup"
+        // preference is set.
+        // Enumerate synchronously; even if we put it on the event loop,
+        // it would still execute right away at the next splash_update
+        // below (but with the wrong splash message).
+        // The manager is created unconditionally in the MainWindow ctor, so
+        // its absence here is a broken invariant, not a runtime condition.
+        InterfaceListManager *if_mgr = main_w->interfaceListManager();
+        ws_assert(if_mgr);
+        // We just scanned the extcaps above when registering their prefs or
+        // if an interface option was on the command line; don't clear them
+        // and re-scan them, that's time-consuming, especially on Windows.
+        if_mgr->refreshNow(false);
     }
 
     capture_opts_trim_snaplen(&global_capture_opts, MIN_PACKET_SIZE);
@@ -1047,24 +971,7 @@ int main(int argc, char *qt_argv[])
 #endif
     splash_update(RA_PREFERENCES_APPLY, NULL, NULL);
     prefs_apply_all();
-    wsApp->emitAppSignal(WiresharkApplication::ColorsChanged);
     wsApp->emitAppSignal(WiresharkApplication::PreferencesChanged);
-
-#ifdef HAVE_LIBPCAP
-    if ((global_capture_opts.num_selected == 0) &&
-            (prefs.capture_device != NULL)) {
-        unsigned i;
-        interface_t *device;
-        for (i = 0; i < global_capture_opts.all_ifaces->len; i++) {
-            device = &g_array_index(global_capture_opts.all_ifaces, interface_t, i);
-            if (!device->hidden && strcmp(device->display_name, prefs.capture_device) == 0) {
-                device->selected = true;
-                global_capture_opts.num_selected++;
-                break;
-            }
-        }
-    }
-#endif
 
     /*
      * Enabled and disabled protocols and heuristic dissectors as per

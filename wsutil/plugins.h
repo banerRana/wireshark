@@ -22,11 +22,14 @@ typedef uint32_t (*plugin_describe_func)(void);
 
 typedef void plugins_t;
 
+/**
+ * @brief Identifies the subsystem a Wireshark plugin extends.
+ */
 typedef enum {
-    WS_PLUGIN_EPAN,
-    WS_PLUGIN_WIRETAP,
-    WS_PLUGIN_CODEC,
-    WS_PLUGIN_UI
+    WS_PLUGIN_EPAN,     /**< Dissector or tap plugin extending the EPAN (packet analysis) engine */
+    WS_PLUGIN_WIRETAP,  /**< File format plugin extending the Wiretap capture I/O library */
+    WS_PLUGIN_CODEC,    /**< Audio codec plugin used for decoding RTP or other media streams */
+    WS_PLUGIN_UI        /**< User interface plugin extending the GUI (Qt or GTK) layer */
 } plugin_type_e;
 
 #define WS_PLUGIN_DESC_DISSECTOR    (1UL << 0)
@@ -52,21 +55,45 @@ typedef void (*plugin_description_callback)(const char *name, const char *versio
                                             uint32_t flags, const char *filename,
                                             void *user_data);
 
+/**
+ * @brief Retrieves descriptions of all plugins.
+ *
+ * @param callback Callback function to handle plugin descriptions.
+ * @param user_data User data to pass to the callback function.
+ */
 WS_DLL_PUBLIC void plugins_get_descriptions(plugin_description_callback callback, void *user_data);
 
+/**
+ * @brief Prints the description of all plugins.
+ */
 WS_DLL_PUBLIC void plugins_dump_all(void);
 
+/**
+ * @brief Gets the count of all loaded plugins.
+ *
+ * @return The total number of loaded plugins.
+ */
 WS_DLL_PUBLIC int plugins_get_count(void);
 
+/**
+ * @brief Cleans up and unloads a plugin.
+ *
+ * @param plugins Pointer to the plugins_t structure to clean up.
+ */
 WS_DLL_PUBLIC void plugins_cleanup(plugins_t *plugins);
 
+/**
+ * @brief Checks if plugins are supported.
+ *
+ * @return true if plugins are supported, false otherwise.
+ */
 WS_DLL_PUBLIC bool plugins_supported(void);
 
- /**
+/**
  * @brief Returns true if the given filename ends in .dll on Windows or .so on other platforms.
  *
- * @param filename The filename to check.
- * @return true if the filename has a plugin suffix, false otherwise.
+ * @param filename The name of the file to check.
+ * @return true if the filename ends with the appropriate extension for the platform, false otherwise.
  */
 WS_DLL_PUBLIC bool is_plugin_filename(const char *filename);
 

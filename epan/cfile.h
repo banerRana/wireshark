@@ -8,10 +8,7 @@
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
-
-#ifndef __CFILE_H__
-#define __CFILE_H__
-
+#pragma once
 #include <epan/epan.h>
 #include <epan/column-info.h>
 #include <epan/dfilter/dfilter.h>
@@ -27,47 +24,63 @@
 extern "C" {
 #endif /* __cplusplus */
 
-/* Current state of file. */
+/**
+ * @brief Lifecycle state of a capture file.
+ */
 typedef enum {
-    FILE_CLOSED,                  /* No file open */
-    FILE_READ_PENDING,            /* A file to read, but haven't opened it yet */
-    FILE_READ_IN_PROGRESS,        /* Reading a file we've opened */
-    FILE_READ_ABORTED,            /* Read aborted by user */
-    FILE_READ_DONE                /* Read completed */
+    FILE_CLOSED,           /**< No file is currently open */
+    FILE_READ_PENDING,     /**< A file is queued to be read but has not been opened yet */
+    FILE_READ_IN_PROGRESS, /**< A file has been opened and is actively being read */
+    FILE_READ_ABORTED,     /**< File read was cancelled by the user */
+    FILE_READ_DONE         /**< File read completed successfully */
 } file_state;
 
-/* Requested packets rescan action. */
+
+/**
+ * @brief Requested packet rescan action to be performed on the current capture.
+ */
 typedef enum {
-    RESCAN_NONE = 0,              /* No rescan requested */
-    RESCAN_SCAN,                  /* Request rescan without full redissection. */
-    RESCAN_REDISSECT              /* Request full redissection. */
+    RESCAN_NONE     = 0, /**< No rescan requested */
+    RESCAN_SCAN,         /**< Rescan packets without performing full redissection */
+    RESCAN_REDISSECT     /**< Rescan packets with full redissection */
 } rescan_type;
 
-/* Character set for text search. */
+
+/**
+ * @brief Character width filter for text search operations.
+ */
 typedef enum {
-    SCS_NARROW_AND_WIDE,
-    SCS_NARROW,
-    SCS_WIDE
-        /* add EBCDIC when it's implemented */
+    SCS_NARROW_AND_WIDE, /**< Search both narrow (single-byte) and wide (multi-byte) character strings */
+    SCS_NARROW,          /**< Search narrow (single-byte) character strings only */
+    SCS_WIDE             /**< Search wide (multi-byte) character strings only */
+    /* add EBCDIC when it's implemented */
 } search_charset_t;
 
+
+/**
+ * @brief Direction of a packet search through the capture.
+ */
 typedef enum {
-    SD_FORWARD,
-    SD_BACKWARD
+    SD_FORWARD,  /**< Search forward (toward newer packets) */
+    SD_BACKWARD  /**< Search backward (toward older packets) */
 } search_direction;
 
-/*
- * Packet provider for programs using a capture file.
+
+/**
+ * @brief Packet provider context for programs operating on a capture file.
  */
 struct packet_provider_data {
-    wtap        *wth;                    /* Wiretap session */
-    const frame_data *ref;
-    frame_data  *prev_dis;
-    frame_data  *prev_cap;
-    frame_data_sequence *frames;         /* Sequence of frames, if we're keeping that information */
-    GTree       *frames_modified_blocks; /* BST with modified blocks for frames (key = frame_data) */
+    wtap                 *wth;                    /**< Wiretap session handle for the open capture file */
+    const frame_data     *ref;                    /**< Reference frame used for relative time calculations */
+    frame_data           *prev_dis;               /**< Most recently displayed frame */
+    frame_data           *prev_cap;               /**< Most recently captured frame */
+    frame_data_sequence  *frames;                 /**< Ordered sequence of all captured frames; may be NULL if not retained */
+    GTree                *frames_modified_blocks;  /**< BST mapping frame_data pointers to their modified block data */
 };
 
+/**
+ * @brief Represents a capture file and its associated metadata.
+ */
 typedef struct _capture_file {
     epan_t                     *epan;
     file_state                  state;                /* Current state of capture file */
@@ -86,6 +99,7 @@ typedef struct _capture_file {
     uint32_t                    count;                /* Total number of frames */
     uint64_t                    packet_comment_count; /* Number of comments in frames (could be >1 per frame... */
     uint32_t                    displayed_count;      /* Number of displayed frames */
+    uint32_t                    aggregation_count;    /* Number of frames shown in Aggregation View */
     uint32_t                    marked_count;         /* Number of marked frames */
     uint32_t                    ignored_count;        /* Number of ignored frames */
     uint32_t                    ref_time_count;       /* Number of time referenced frames */
@@ -140,8 +154,21 @@ typedef struct _capture_file {
   */
 WS_DLL_PUBLIC void cap_file_init(capture_file *cf);
 
+/**
+ * @brief Get the timestamp of a frame.
+ *
+ * @param prov Pointer to the packet provider data structure.
+ * @param frame_num The number of the frame for which to retrieve the timestamp.
+ * @return Pointer to the end timestamp, or NULL if not available.
+ */
 WS_DLL_PUBLIC const nstime_t *cap_file_provider_get_frame_ts(struct packet_provider_data *prov, uint32_t frame_num);
 
+/**
+ * @brief Get the start timestamp of a capture file.
+ *
+ * @param prov Pointer to the packet provider data structure.
+ * @return Pointer to the start timestamp, or NULL if not available.
+ */
 WS_DLL_PUBLIC const nstime_t *cap_file_provider_get_start_ts(struct packet_provider_data *prov);
 
 /**
@@ -158,7 +185,7 @@ WS_DLL_PUBLIC const nstime_t *cap_file_provider_get_end_ts(struct packet_provide
  * @param prov Pointer to the packet provider data structure.
  * @param interface_id The ID of the interface to retrieve.
  * @param section_number The section number in the capture file.
- * @return const char* The name of the interface, or "unknown" if not found.
+ * @return The name of the interface, or "unknown" if not found.
  */
 WS_DLL_PUBLIC const char *cap_file_provider_get_interface_name(struct packet_provider_data *prov, uint32_t interface_id, unsigned section_number);
 
@@ -182,6 +209,14 @@ WS_DLL_PUBLIC const char *cap_file_provider_get_interface_description(struct pac
  */
 WS_DLL_PUBLIC int32_t cap_file_provider_get_process_id(struct packet_provider_data *prov, uint32_t process_info_id, unsigned section_number);
 
+/**
+ * @brief Retrieves the name of a process from a capture file.
+ *
+ * @param prov Pointer to the packet provider data structure.
+ * @param process_info_id Identifier for the process information.
+ * @param section_number The section number (currently unused).
+ * @return The process's name, or NULL if not found.
+ */
 WS_DLL_PUBLIC const char *cap_file_provider_get_process_name(struct packet_provider_data *prov, uint32_t process_info_id, unsigned section_number);
 
 /**
@@ -191,10 +226,17 @@ WS_DLL_PUBLIC const char *cap_file_provider_get_process_name(struct packet_provi
  * @param process_info_id Identifier for the process information.
  * @param section_number The section number (currently unused).
  * @param uuid_size Pointer to store the size of the UUID.
- * @return const uint8_t* Pointer to the UUID or NULL if not found.
+ * @return Pointer to the UUID or NULL if not found.
  */
 WS_DLL_PUBLIC const uint8_t *cap_file_provider_get_process_uuid(struct packet_provider_data *prov, uint32_t process_info_id, unsigned section_number, size_t *uuid_size);
 
+/**
+ * @brief Get a modified block for a frame from the packet provider.
+ *
+ * @param prov Pointer to the packet_provider_data structure.
+ * @param fd Pointer to the frame_data structure representing the frame.
+ * @return The modified block if found, otherwise NULL.
+ */
 WS_DLL_PUBLIC wtap_block_t cap_file_provider_get_modified_block(struct packet_provider_data *prov, const frame_data *fd);
 
 /**
@@ -211,5 +253,3 @@ WS_DLL_PUBLIC void cap_file_provider_set_modified_block(struct packet_provider_d
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
-#endif /* cfile.h */

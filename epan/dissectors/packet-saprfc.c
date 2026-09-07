@@ -14,12 +14,20 @@
 #include <epan/prefs.h>
 #include <epan/expert.h>
 #include <wsutil/wmem/wmem.h>
+#include <wsutil/saplzclzh.h>
 
 /*
  * Define default ports. The right range should be 33NN, but as port numbers are proprietary and not
  * IANA assigned, we leave only the one corresponding to the instance 00.
  */
 #define SAPRFC_PORT_RANGE "3300"
+
+#define SAPRFC_DEFAULT_MAX_UNCOMPRESSED_SIZE (16U * 1024U * 1024U)
+#define SAPRFC_DEFAULT_MAX_REASSEMBLED_SIZE (16U * 1024U * 1024U)
+#define SAPRFC_TABLE_PREFIX_LENGTH 8U
+#define SAPRFC_APPC_HEADER_LEN 96U
+#define SAPRFC_NORMAL_CLIENT_HEADER_LEN_V1 64U
+#define SAPRFC_NORMAL_CLIENT_HEADER_LEN_V3 80U
 
 
 /* SAP RFC Request Types field values */
@@ -408,17 +416,21 @@ static int hf_saprfc_payload;
 static int ett_saprfc;
 
 /* Expert info */
-#if 0
-static expert_field ei_saprfc_invalid_table_structure_length;
-static expert_field ei_saprfc_invalid_table_content_length;
-static expert_field ei_saprfc_mismatching_table_row_width;
-#endif
+static expert_field ei_saprfc_invalid_decompression;
+static expert_field ei_saprfc_invalid_decompress_length;
+static expert_field ei_saprfc_invalid_table_length;
 static expert_field ei_saprfc_item_length_invalid;
 static expert_field ei_saprfc_unknown_item;
+static expert_field ei_saprfc_short_appc_header;
 
+
+/* Global decompress preference */
+static bool global_saprfc_decompress = true;
+static unsigned global_saprfc_max_uncompressed_size = SAPRFC_DEFAULT_MAX_UNCOMPRESSED_SIZE;
 
 /* Global table reassembling preference */
 static bool global_saprfc_table_reassembly = true;
+static unsigned global_saprfc_max_reassembled_size = SAPRFC_DEFAULT_MAX_REASSEMBLED_SIZE;
 
 /* Global highlight preference */
 static bool global_saprfc_highlight_items = true;
@@ -428,33 +440,59 @@ static dissector_handle_t saprfc_handle;
 static dissector_handle_t saprfcinternal_handle;
 
 /* Keeps track of table content items */
-uint32_t global_saprfc_table_content_counter = 0;
+static uint32_t global_saprfc_table_content_counter = 0;
 
 
 void proto_register_saprfc(void);
 void proto_reg_handoff_saprfc(void);
 
 
-static void
-dissect_saprfc_tables_compressed(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, tvbuff_t *structure_tvb _U_, uint32_t structure_offset _U_, uint32_t structure_length _U_, uint32_t row_width _U_, uint32_t row_count _U_){
+static bool
+check_saprfc_compression(tvbuff_t *tvb, uint32_t offset)
+{
+	/* We check for the length, the algorithm value and the presence of magic bytes */
+	if ((tvb_captured_length_remaining(tvb, offset) >= 8) &&
+		((tvb_get_uint8(tvb, offset+4) == 0x11) || (tvb_get_uint8(tvb, offset+4) == 0x12)) &&
+		(tvb_get_uint16(tvb, offset+5, ENC_LITTLE_ENDIAN) == 0x9d1f)){
+		return true;
+	}
+	return false;
+}
 
-	uint32_t reported_length = 0, offset = 0;
+
+static void
+dissect_saprfc_tables_compressed(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree){
+
+	int rt = 0;
+	int compressed_length;
+	uint32_t offset = 0;
+	uint32_t reported_length = 0;
+	uint32_t uncompress_length = 0;
+	uint32_t table_offset = 0;
+	tvbuff_t *decompressed_tvb = NULL;
+	const uint8_t *compressed_buffer = NULL;
+	uint8_t *decompressed_buffer = NULL;
 
 	proto_item *compression_header = NULL;
 	proto_tree *compression_header_tree = NULL;
+	proto_item *decompress_return_code = NULL;
+	proto_item *rl = NULL;
 
-	/* Skip the first 8 bytes */
-	offset = 8;
+	/* Skip the table prefix preceding the compression header. */
+	offset = SAPRFC_TABLE_PREFIX_LENGTH;
 
 	/* Add the compression header subtree */
 	compression_header = proto_tree_add_item(tree, hf_saprfc_table_compress_header, tvb, offset, 8, ENC_NA);
 	compression_header_tree = proto_item_add_subtree(compression_header, ett_saprfc);
 
+	table_offset = offset;
+
 	/* Add the uncompressed length */
 	reported_length = tvb_get_letohl(tvb, offset);
-	proto_tree_add_uint(compression_header_tree, hf_saprfc_table_uncomplength, tvb, offset, 4, reported_length);
+	rl = proto_tree_add_uint(compression_header_tree, hf_saprfc_table_uncomplength, tvb, offset, 4, reported_length);
 	offset += 4;
 	proto_item_append_text(compression_header, ", Uncompressed Len: %u", reported_length);
+	col_append_fstr(pinfo->cinfo, COL_INFO, " Uncompressed Length=%u ", reported_length);
 
 	/* Add the algorithm */
 	proto_tree_add_item(compression_header_tree, hf_saprfc_table_algorithm, tvb, offset, 1, ENC_BIG_ENDIAN);
@@ -466,12 +504,51 @@ dissect_saprfc_tables_compressed(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tr
 	proto_tree_add_item(compression_header_tree, hf_saprfc_table_special, tvb, offset, 1, ENC_BIG_ENDIAN);
 	offset++;
 
-	/* TODO: Decompression is not yet enabled until the LZC/LZH library is added
-	 * Here we just add the payload subtree
-	 */
-	proto_tree_add_item(tree, hf_saprfc_table_content, tvb, offset, -1, ENC_NA);
+	if (global_saprfc_decompress){
+		if (reported_length == 0 || reported_length > global_saprfc_max_uncompressed_size) {
+			expert_add_info_format(pinfo, rl, &ei_saprfc_invalid_decompress_length,
+					"Reported uncompressed payload length %u is invalid or exceeds the configured maximum of %u bytes",
+					reported_length, global_saprfc_max_uncompressed_size);
+		} else {
+			compressed_length = tvb_captured_length_remaining(tvb, table_offset);
+			compressed_buffer = tvb_get_ptr(tvb, table_offset, compressed_length);
+			decompressed_buffer = (uint8_t *)wmem_alloc0(pinfo->pool, reported_length);
+			uncompress_length = reported_length;
 
-	/* TODO: Dissect saprfc_payload */
+			rt = sap_lzclzh_decompress(pinfo->pool, compressed_buffer,
+				compressed_length, decompressed_buffer, &uncompress_length);
+
+			decompress_return_code = proto_tree_add_int_format_value(compression_header_tree,
+					hf_saprfc_table_return_code, tvb, table_offset, 0, rt,
+					"%d (%s)", rt, sap_lzclzh_decompress_error_string(rt));
+			proto_item_set_generated(decompress_return_code);
+
+			if (rt != CS_END_OF_STREAM) {
+				expert_add_info_format(pinfo, compression_header, &ei_saprfc_invalid_decompression,
+						"Decompression of table failed with return code %d (%s)",
+						rt, sap_lzclzh_decompress_error_string(rt));
+			} else {
+				if (uncompress_length != reported_length) {
+					expert_add_info_format(pinfo, rl, &ei_saprfc_invalid_decompress_length,
+							"The uncompressed table length (%u) differs from the reported length (%u)",
+							uncompress_length, reported_length);
+				}
+
+				decompressed_tvb = tvb_new_child_real_data(tvb, decompressed_buffer,
+					uncompress_length, uncompress_length);
+				add_new_data_source(pinfo, decompressed_tvb, "Uncompressed Table Data");
+
+				/* Add the table subtree using the new tvb. */
+				proto_tree_add_item(tree, hf_saprfc_table_content, decompressed_tvb, 0, -1, ENC_NA);
+
+				/* TODO: Dissect SAP RFC Table content */
+				return;
+			}
+		}
+	}
+
+	/* Add the payload subtree */
+	proto_tree_add_item(tree, hf_saprfc_table_content, tvb, offset, -1, ENC_NA);
 }
 
 static void
@@ -479,16 +556,17 @@ dissect_saprfc_tables(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, uint3
 
 	uint8_t *reassemble_buffer = NULL, *table_name = NULL;
 	uint16_t next_item = 0;
-	uint32_t reassemble_length = 0, reassemble_offset = 0, row_width = 0, row_count = 0, initial_offset = 0;
+	uint32_t reassemble_length = 0, reassemble_offset = 0, initial_offset = 0;
 
 	proto_item *table = NULL;
 	proto_tree *table_tree = NULL;
 	tvbuff_t *compressed_tvb = NULL;
 
-	uint32_t structure_offset = offset;
-	uint32_t structure_length = item_length;
-
 	/* Skip table line structure */
+	if (tvb_captured_length_remaining(tvb, offset) < item_length + 6U){
+		expert_add_info(pinfo, tree, &ei_saprfc_invalid_table_length);
+		return;
+	}
 	offset += item_length + 2;
 
 	next_item = tvb_get_ntohs(tvb, offset);
@@ -499,6 +577,10 @@ dissect_saprfc_tables(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, uint3
 
 	item_length = tvb_get_ntohs(tvb, offset);
 	offset += 2;
+	if (tvb_captured_length_remaining(tvb, offset) < item_length + 6U){
+		expert_add_info(pinfo, tree, &ei_saprfc_invalid_table_length);
+		return;
+	}
 	table_name = tvb_get_string_enc(pinfo->pool, tvb, offset, item_length, ENC_ASCII);
 	offset += item_length;
 	offset += 2;
@@ -511,9 +593,14 @@ dissect_saprfc_tables(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, uint3
 
 	item_length = tvb_get_ntohs(tvb, offset);
 	offset += 2;
-	row_width = tvb_get_ntohl(tvb, offset);
+	if (item_length < 8 || tvb_captured_length_remaining(tvb, offset) < item_length + 6U){
+		expert_add_info(pinfo, tree, &ei_saprfc_invalid_table_length);
+		return;
+	}
+	/* Row width and count are currently not dissected, but are part of the fixed header. */
+	tvb_get_ntohl(tvb, offset);
 	offset += 4;
-	row_count = tvb_get_ntohl(tvb, offset);
+	tvb_get_ntohl(tvb, offset);
 	offset += 4;
 	offset += (item_length - 8) + 2;
 
@@ -525,10 +612,22 @@ dissect_saprfc_tables(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, uint3
 
 	item_length = tvb_get_ntohs(tvb, offset);
 	offset += 2;
+	if (item_length < SAPRFC_TABLE_PREFIX_LENGTH ||
+	    tvb_captured_length_remaining(tvb, offset) < SAPRFC_TABLE_PREFIX_LENGTH){
+		expert_add_info(pinfo, tree, &ei_saprfc_invalid_table_length);
+		return;
+	}
 
 	/* Get the reassemble length */
 	initial_offset = offset;
 	reassemble_length = tvb_get_ntohl(tvb, offset + 4);
+	if (reassemble_length < SAPRFC_TABLE_PREFIX_LENGTH ||
+	    reassemble_length > global_saprfc_max_reassembled_size){
+		expert_add_info_format(pinfo, tree, &ei_saprfc_invalid_table_length,
+				"Reported reassembled table length %u is invalid or exceeds the configured maximum of %u bytes",
+				reassemble_length, global_saprfc_max_reassembled_size);
+		return;
+	}
 	if (item_length > (reassemble_length - reassemble_offset)){
 		item_length = reassemble_length - reassemble_offset;
 	}
@@ -539,16 +638,29 @@ dissect_saprfc_tables(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, uint3
 		return;
 	}
 
-	/* Perform the reassemble */
-	while (tvb_offset_exists(tvb, offset + item_length) && (reassemble_offset <= reassemble_length)){
+	/* Reassemble the table content, retaining the actual captured length. */
+	while (reassemble_offset < reassemble_length){
+		if (tvb_captured_length_remaining(tvb, offset) < item_length){
+			break;
+		}
 		tvb_memcpy(tvb, reassemble_buffer + reassemble_offset, offset, item_length);
-		offset += item_length + 2;
+		offset += item_length;
 		reassemble_offset += item_length;
+		if (reassemble_offset == reassemble_length){
+			break;
+		}
 
-		/* If the table content continues, get the length and advance the offset */
+		/* Skip the closing marker and read the next item identifier. */
+		if (tvb_captured_length_remaining(tvb, offset) < 4){
+			break;
+		}
+		offset += 2;
 		next_item = tvb_get_ntohs(tvb, offset);
 		offset+=2;
 		if (next_item == 0x0305){
+			if (tvb_captured_length_remaining(tvb, offset) < 2){
+				break;
+			}
 			item_length = tvb_get_ntohs(tvb, offset);
 			offset+=2;
 
@@ -562,10 +674,8 @@ dissect_saprfc_tables(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, uint3
 		}
 	}
 
-	/* Now re-setup the tvb buffer to have the new data */
-	compressed_tvb = tvb_new_real_data(reassemble_buffer, reassemble_length, reassemble_offset);
-	tvb_set_child_real_data_tvbuff(tvb, compressed_tvb);
-	add_new_data_source(pinfo, compressed_tvb, "Compressed Table Data");
+	/* Expose only bytes actually copied; retain the declared length as reported length. */
+	compressed_tvb = tvb_new_child_real_data(tvb, reassemble_buffer, reassemble_offset, reassemble_length);
 
 	/* Add the Table subtree */
 	table = proto_tree_add_item(tree, hf_saprfc_table, tvb, initial_offset, offset - initial_offset, ENC_NA);
@@ -573,8 +683,19 @@ dissect_saprfc_tables(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, uint3
 
 	proto_item_append_text(table, ", Name=%s", table_name);
 
-	/* Now uncompress the table content */
-	dissect_saprfc_tables_compressed(compressed_tvb, pinfo, table_tree, tvb, structure_offset, structure_length, row_width, row_count);
+	/* Only complete tables can safely be passed to the decompressor. */
+	if (reassemble_offset == reassemble_length &&
+	    check_saprfc_compression(compressed_tvb, SAPRFC_TABLE_PREFIX_LENGTH)) {
+		dissect_saprfc_tables_compressed(compressed_tvb, pinfo, table_tree);
+	} else {
+		proto_tree_add_item(table_tree, hf_saprfc_table_content, compressed_tvb,
+				SAPRFC_TABLE_PREFIX_LENGTH, -1, ENC_NA);
+		if (reassemble_offset != reassemble_length){
+			expert_add_info_format(pinfo, table, &ei_saprfc_invalid_table_length,
+					"Reassembled table contains %u of %u reported bytes",
+					reassemble_offset, reassemble_length);
+		}
+	}
 
 }
 
@@ -675,21 +796,25 @@ static void
 dissect_saprfc_payload(tvbuff_t *tvb, packet_info *info, proto_tree *tree, proto_tree *parent_tree, uint32_t offset){
 
 	uint8_t item_id1, item_id2;
-	uint16_t item_length, item_value_length;
+	uint16_t item_value_length;
+	uint32_t item_length;
+	int remaining_length;
+	unsigned reported_remaining_length;
+	tvbuff_t *item_value_tvb = NULL;
 
 	proto_item *item = NULL, *item_value = NULL;
 	proto_tree *item_tree = NULL, *item_value_tree = NULL;
 
-	while (tvb_offset_exists(tvb, offset)){
+	while (tvb_reported_length_remaining(tvb, offset) > 0){
 		item_length = 0;
+		item_id2 = 0;
 
 		/* Add the item subtree. We start with a item's length of 1, as we don't have yet the real size of the item */
 		item = proto_tree_add_item(tree, hf_saprfc_item, tvb, offset, 1, ENC_NA);
 		item_tree = proto_item_add_subtree(item, ett_saprfc);
 
 		/* Get the first identifier */
-		item_id1 = tvb_get_uint8(tvb, offset);
-		proto_tree_add_item(item_tree, hf_saprfc_item_id1, tvb, offset, 1, ENC_BIG_ENDIAN);
+		proto_tree_add_item_ret_uint8(item_tree, hf_saprfc_item_id1, tvb, offset, 1, ENC_BIG_ENDIAN, &item_id1);
 		offset += 1;
 		item_length += 1;
 		proto_item_append_text(item, ": (0x%.2x)", item_id1);
@@ -699,19 +824,37 @@ dissect_saprfc_payload(tvbuff_t *tvb, packet_info *info, proto_tree *tree, proto
 			break; /* ? */
 
 		/* Otherwise follow dissection */
-		} else {
+		}
 
-			item_id2 = tvb_get_uint8(tvb, offset);
-			proto_tree_add_item(item_tree, hf_saprfc_item_id2, tvb, offset, 1, ENC_BIG_ENDIAN);
-			offset += 1;
-			item_length += 1;
-			proto_item_append_text(item, ", (0x%.2x)", item_id2);
+		/* ID2 and the two-byte value length must be present. */
+		if (tvb_reported_length_remaining(tvb, offset) < 3 ||
+		    tvb_captured_length_remaining(tvb, offset) < 3){
+			expert_add_info(info, item, &ei_saprfc_item_length_invalid);
+			return;
+		}
 
-			item_value_length = tvb_get_ntohs(tvb, offset);
-			proto_tree_add_item(item_tree, hf_saprfc_item_length, tvb, offset, 2, ENC_BIG_ENDIAN);
-			offset += 2;
-			item_length += 2;
-			proto_item_append_text(item, ", Length=%d", item_value_length);
+		proto_tree_add_item_ret_uint8(item_tree, hf_saprfc_item_id2, tvb, offset, 1, ENC_BIG_ENDIAN, &item_id2);
+		offset += 1;
+		item_length += 1;
+		proto_item_append_text(item, ", (0x%.2x)", item_id2);
+
+		item_value_length = tvb_get_ntohs(tvb, offset);
+		proto_tree_add_item(item_tree, hf_saprfc_item_length, tvb, offset, 2, ENC_BIG_ENDIAN);
+		offset += 2;
+		item_length += 2;
+		proto_item_append_text(item, ", Length=%d", item_value_length);
+
+
+		/* Every regular item includes its value followed by repeated ID markers. */
+		remaining_length = tvb_captured_length_remaining(tvb, offset);
+		reported_remaining_length = tvb_reported_length_remaining(tvb, offset);
+		if (remaining_length < 0 || (uint32_t)remaining_length < (uint32_t)item_value_length + 2U ||
+		    reported_remaining_length < (uint32_t)item_value_length + 2U){
+			expert_add_info(info, item, &ei_saprfc_item_length_invalid);
+			if (remaining_length > 0){
+				proto_tree_add_item(item_tree, hf_saprfc_item_value, tvb, offset, remaining_length, ENC_NA);
+			}
+			return;
 		}
 
 		/* Now we have the real length of the item, set the proper size */
@@ -720,11 +863,12 @@ dissect_saprfc_payload(tvbuff_t *tvb, packet_info *info, proto_tree *tree, proto
 
 		item_value = proto_tree_add_item(item_tree, hf_saprfc_item_value, tvb, offset, item_value_length, ENC_NA);
 		item_value_tree = proto_item_add_subtree(item_value, ett_saprfc);
-		dissect_saprfc_item(tvb, info, item, item_value_tree, offset, item_id1, item_id2, item_value_length);
+		item_value_tvb = tvb_new_subset_length(tvb, offset, item_value_length);
+		dissect_saprfc_item(item_value_tvb, info, item, item_value_tree, 0, item_id1, item_id2, item_value_length);
 
 		/* Also send the tables items for reassembling */
 		if (global_saprfc_table_reassembly && item_id1==0x02 && item_id2==0x13){
-			dissect_saprfc_tables(tvb, info, parent_tree, offset, item_value_length);
+			dissect_saprfc_tables(item_value_tvb, info, parent_tree, 0, item_value_length);
 		}
 
 		offset+= item_value_length;
@@ -752,10 +896,7 @@ dissect_saprfc_monitor_cmd(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, 
 	//offset+=1;
 	proto_item_append_text(tree, ", Command=%s", val_to_str_const(opcode, saprfc_monitor_cmd_values, "Unknown"));
 
-	switch (opcode){
-		// TODO: Dissect RFC monitor command opcodes
-	};
-
+	// TODO: Dissect RFC monitor command opcodes
 }
 
 
@@ -945,6 +1086,11 @@ dissect_saprfc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
 	col_clear(pinfo->cinfo, COL_INFO);
 
 	/* Get version and request type values */
+	if (tvb_reported_length_remaining(tvb, offset) < 2) {
+		saprfc = proto_tree_add_item(tree, proto_saprfc, tvb, 0, -1, ENC_NA);
+		expert_add_info_format(pinfo, saprfc, &ei_saprfc_item_length_invalid, "SAP RFC header is shorter than 2 bytes");
+		return tvb_reported_length(tvb);
+	}
 	version = tvb_get_uint8(tvb, offset);
 	req_type = tvb_get_uint8(tvb, offset + 1);
 
@@ -956,6 +1102,11 @@ dissect_saprfc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
 		/* Add the main saprfc subtree */
 		saprfc = proto_tree_add_item(tree, proto_saprfc, tvb, 0, -1, ENC_NA);
 		saprfc_tree = proto_item_add_subtree(saprfc, ett_saprfc);
+		if (tvb_reported_length_remaining(tvb, offset) < (int)SAPRFC_APPC_HEADER_LEN) {
+			proto_tree_add_item(saprfc_tree, hf_saprfc_header, tvb, offset, -1, ENC_NA);
+			expert_add_info_format(pinfo, saprfc, &ei_saprfc_short_appc_header, "SAP RFC APPC header is shorter than %u bytes", SAPRFC_APPC_HEADER_LEN);
+			return tvb_reported_length(tvb);
+		}
 		dissect_saprfc_header(tvb, pinfo, saprfc_tree, offset);
 		return tvb_reported_length(tvb);
 	}
@@ -972,12 +1123,18 @@ dissect_saprfc(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _
 	proto_item_append_text(saprfc_tree, ", Version=%u, Request Type=%s", version, val_to_str_const(req_type, saprfc_reqtype_values, "Unknown"));
 
 	/* Dissect the remaining based on the version and request type */
-	switch (req_type){
+		switch (req_type){
 
-		case 0x03:		/* GW_NORMAL_CLIENT */
-		case 0x0b:{		/* GW_REGISTER_TP */
-			proto_tree_add_item(saprfc_tree, hf_saprfc_address, tvb, offset, 4, ENC_BIG_ENDIAN);
-			offset += 4;
+			case 0x03:		/* GW_NORMAL_CLIENT */
+			case 0x0b:{		/* GW_REGISTER_TP */
+				unsigned header_len = (version == 0x03) ? SAPRFC_NORMAL_CLIENT_HEADER_LEN_V3 : SAPRFC_NORMAL_CLIENT_HEADER_LEN_V1;
+				int remaining = tvb_reported_length_remaining(tvb, 0);
+				if (remaining < (int)header_len) {
+					expert_add_info_format(pinfo, saprfc, &ei_saprfc_item_length_invalid, "SAP RFC normal client/register TP header is shorter than %u bytes", header_len);
+					return tvb_reported_length(tvb);
+				}
+				proto_tree_add_item(saprfc_tree, hf_saprfc_address, tvb, offset, 4, ENC_BIG_ENDIAN);
+				offset += 4;
 			offset += 4;  /* Skip 4 bytes here */
 			proto_tree_add_item(saprfc_tree, hf_saprfc_service, tvb, offset, 10, ENC_ASCII);
 			offset += 10;
@@ -1272,13 +1429,12 @@ proto_register_saprfc(void)
 
 	/* Register the expert info */
 	static ei_register_info ei[] = {
-#if 0
-		{ &ei_saprfc_invalid_table_structure_length, { "saprfc.table.structure.length.invalid", PI_MALFORMED, PI_WARN, "The structure item payload is not long enough to parse the reported number of fields", EXPFILL }},
-		{ &ei_saprfc_invalid_table_content_length, { "saprfc.table.content.length.invalid", PI_MALFORMED, PI_WARN, "The table content length is not large enough to read the expected amount of data from", EXPFILL }},
-		{ &ei_saprfc_mismatching_table_row_width, { "saprfc.table.lengths.mismatching", PI_MALFORMED, PI_WARN, "The row width reported in table metadata and field metadata does not match", EXPFILL }},
-#endif
+		{ &ei_saprfc_invalid_decompression, { "saprfc.table.compression.failed", PI_MALFORMED, PI_WARN, "Decompression of table failed", EXPFILL }},
+		{ &ei_saprfc_invalid_decompress_length, { "saprfc.table.compression.uncomplength.invalid", PI_MALFORMED, PI_WARN, "The uncompressed table length differs from the reported length", EXPFILL }},
+		{ &ei_saprfc_invalid_table_length, { "saprfc.table.length.invalid", PI_MALFORMED, PI_WARN, "The table length is invalid", EXPFILL }},
 		{ &ei_saprfc_item_length_invalid, { "saprfc.item.value.invalid_length", PI_MALFORMED, PI_WARN, "The item length is invalid", EXPFILL }},
 		{ &ei_saprfc_unknown_item, { "saprfc.item.unknown", PI_UNDECODED, PI_WARN, "The RFC item has a unknown type that is not dissected", EXPFILL }},
+		{ &ei_saprfc_short_appc_header, { "saprfc.appcheader.short", PI_MALFORMED, PI_WARN, "SAP RFC APPC header is too short", EXPFILL }},
 	};
 
 	module_t *saprfc_module;
@@ -1298,10 +1454,23 @@ proto_register_saprfc(void)
 
 	/* Register the preferences */
 	saprfc_module = prefs_register_protocol(proto_saprfc, proto_reg_handoff_saprfc);
+	prefs_register_bool_preference(saprfc_module, "decompress", "Decompress SAP RFC Protocol tables",
+		"Whether the SAP RFC Protocol dissector should decompress table content.",
+		&global_saprfc_decompress);
+	prefs_register_uint_preference(saprfc_module, "max_uncompressed_size", "Maximum uncompressed table size",
+		"Maximum number of bytes to allocate for an uncompressed SAP RFC table.",
+		10, &global_saprfc_max_uncompressed_size);
+	prefs_register_uint_preference(saprfc_module, "max_reassembled_size", "Maximum reassembled table size",
+		"Maximum number of bytes to allocate while reassembling an SAP RFC table.",
+		10, &global_saprfc_max_reassembled_size);
 
-	prefs_register_bool_preference(saprfc_module, "table_reassembly", "Reassemble SAP RFC table content", "Whether the SAP RFC Protocol dissector should reassemble table content included in payloads.", &global_saprfc_table_reassembly);
+	prefs_register_bool_preference(saprfc_module, "table_reassembly", "Reassemble SAP RFC table content",
+		"Whether the SAP RFC Protocol dissector should reassemble table content included in payloads.",
+		&global_saprfc_table_reassembly);
 
-	prefs_register_bool_preference(saprfc_module, "highlight_unknown_items", "Highlight unknown SAP RFC Items", "Whether the SAP RFC Protocol dissector should highlight unknown RFC items (might be noise and generate a lot of expert warnings)", &global_saprfc_highlight_items);
+	prefs_register_bool_preference(saprfc_module, "highlight_unknown_items", "Highlight unknown SAP RFC Items",
+		"Whether the SAP RFC Protocol dissector should highlight unknown RFC items (might be noise and generate a lot of expert warnings)",
+		&global_saprfc_highlight_items);
 }
 
 

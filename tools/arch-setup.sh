@@ -86,7 +86,7 @@ BASIC_LIST="base-devel
 	qt6-base
 	qt6-multimedia
 	qt6-tools
-	qt6-5compat
+	qt6-svg
 	sbc
 	snappy
 	spandsp

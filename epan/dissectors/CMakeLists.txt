@@ -17,11 +17,11 @@ add_subdirectory(corba-idl EXCLUDE_FROM_ALL)
 add_custom_command(
 	OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/packet-ncp2222.c
 	COMMAND ${Python3_EXECUTABLE}
-		${CMAKE_SOURCE_DIR}/tools/ncp2222.py
+		${CMAKE_SOURCE_DIR}/tools/dissector_generators/generate-ncp2222.py
 		-o ${CMAKE_CURRENT_BINARY_DIR}/packet-ncp2222.c
 	DEPENDS
 		packet-ncp2222.inc
-		${CMAKE_SOURCE_DIR}/tools/ncp2222.py
+		${CMAKE_SOURCE_DIR}/tools/dissector_generators/generate-ncp2222.py
 )
 
 add_custom_target(x11-dissector
@@ -309,6 +309,7 @@ set(DISSECTOR_PUBLIC_HEADERS
 	packet-ieee80211-radiotap-defs.h
 	packet-ieee80211-radiotap-iter.h
 	packet-ieee80211.h
+	packet-ieee802154.h
 	packet-ieee802a.h
 	packet-ip.h
 	packet-ipsec.h
@@ -391,6 +392,7 @@ set(DISSECTOR_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/file-jpeg.c
 	${CMAKE_CURRENT_SOURCE_DIR}/file-mmodule.c
 	${CMAKE_CURRENT_SOURCE_DIR}/file-mp4.c
+	${CMAKE_CURRENT_SOURCE_DIR}/file-ogg.c
 	${CMAKE_CURRENT_SOURCE_DIR}/file-pcap.c
 	${CMAKE_CURRENT_SOURCE_DIR}/file-pcapng.c
 	${CMAKE_CURRENT_SOURCE_DIR}/file-pcapng-darwin.c
@@ -401,6 +403,7 @@ set(DISSECTOR_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/file-rtpdump.c
 	${CMAKE_CURRENT_SOURCE_DIR}/file-tiff.c
 	${CMAKE_CURRENT_SOURCE_DIR}/file-ttl.c
+	${CMAKE_CURRENT_SOURCE_DIR}/file-zip.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-2dparityfec.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-3com-njack.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-3com-xns.c
@@ -617,6 +620,7 @@ set(DISSECTOR_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-clnp.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-cmpp.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-cnip.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-coap-eap.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-coap.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-cola.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-collectd.c
@@ -721,6 +725,7 @@ set(DISSECTOR_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-dect-mitel-eth.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-dect-mitel-rfp.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-dect-nr.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-dect-nr-tap.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-dect-nwk.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-devicenet.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-dhcp.c
@@ -945,6 +950,7 @@ set(DISSECTOR_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-gtp.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-gtpv2.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-gquic.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-gue.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-gvcp.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-gvrp.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-gvsp.c
@@ -1036,6 +1042,7 @@ set(DISSECTOR_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-igap.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-igmp.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-igrp.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-ike.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-ilnp.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-imap.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-imf.c
@@ -1079,7 +1086,6 @@ set(DISSECTOR_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-ipxwan.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-irc.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-irdma.c
-	${CMAKE_CURRENT_SOURCE_DIR}/packet-isakmp.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-iscsi.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-isdn.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-iser.c
@@ -1164,6 +1170,7 @@ set(DISSECTOR_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-lisp-tcp.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-lisp.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-lithionics.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-livewire.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-llc.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-lldp.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-llrp.c
@@ -1215,6 +1222,7 @@ set(DISSECTOR_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-mcpe.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-mctp.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-mctp-control.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-mctp-smbus.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-mdb.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-mdp.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-mdshdr.c
@@ -1323,6 +1331,7 @@ set(DISSECTOR_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-netlink-generic.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-netlink-netfilter.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-netlink-net_dm.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-netlink-nl80211.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-netlink-mac80211-hwsim.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-netlink-ovs_ct_limit.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-netlink-ovs_datapath.c
@@ -1369,6 +1378,9 @@ set(DISSECTOR_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-null.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-nvme.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-nvme-mi.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-nvme-mi-admin.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-nvme-mi-control.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-nvme-mi-mi.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-nvme-rdma.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-nvme-tcp.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-nwmtp.c
@@ -1498,6 +1510,7 @@ set(DISSECTOR_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-raknet.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-raw.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-rdm.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-rdm-etc.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-rdp.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-rdp_multitransport.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-rdp_conctrl.c
@@ -1701,6 +1714,7 @@ set(DISSECTOR_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-tacacs.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-tali.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-tapa.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-tcg-storage.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-tcp.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-tcpcl.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-tcpros.c
@@ -1769,6 +1783,7 @@ set(DISSECTOR_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-udpcp.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-uds.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-udt.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-udx.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-uet.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-uftp.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-uftp4.c
@@ -1928,10 +1943,10 @@ set(DISSECTOR_DATA_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/data-bacnet.c
 	${CMAKE_CURRENT_SOURCE_DIR}/data-bluetooth.c
 	${CMAKE_CURRENT_SOURCE_DIR}/data-dmx-manfid.c
+	${CMAKE_CURRENT_SOURCE_DIR}/data-errno.c
 	${CMAKE_CURRENT_SOURCE_DIR}/data-isobus.c
 	${CMAKE_CURRENT_SOURCE_DIR}/data-midi-sysex-id.c
 	${CMAKE_CURRENT_SOURCE_DIR}/data-ncsi.c
-	${CMAKE_CURRENT_SOURCE_DIR}/data-nl80211.c
 	${CMAKE_CURRENT_SOURCE_DIR}/data-usb.c
 )
 
@@ -1948,13 +1963,13 @@ set(EVENT_DISSECTOR_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-data.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-json.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-media-type.c
+	${CMAKE_CURRENT_SOURCE_DIR}/packet-mime-encap.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-pcapng_block.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-text-media.c
 	${EVENT_FILES}
 )
 
 set(DISSECTOR_SUPPORT_SRC
-	${CMAKE_CURRENT_SOURCE_DIR}/errno.c
 	${CMAKE_CURRENT_SOURCE_DIR}/json-dictionary.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-dcerpc-nt.c
 	${CMAKE_CURRENT_SOURCE_DIR}/packet-snort-config.c

@@ -27,16 +27,19 @@
 
 #include <ui/qt/utils/color_utils.h>
 #include <ui/qt/utils/qt_ui_utils.h>
+#include <ui/qt/utils/theme_manager.h>
 #include "main_application.h"
 #include <ui/qt/main_window.h>
 #include <ui/qt/main_status_bar.h>
 #include <ui/qt/widgets/wireless_timeline.h>
 
+#include <QApplication>
 #include <QColor>
 #include <QElapsedTimer>
 #include <QFontMetrics>
 #include <QModelIndex>
 #include <QElapsedTimer>
+#include <QPalette>
 
 // Print timing information
 //#define DEBUG_PACKET_LIST_MODEL 1
@@ -96,6 +99,10 @@ PacketListModel::PacketListModel(QObject *parent, capture_file *cf) :
     number_to_row_.reserve(reserved_packets_);
 
     idle_dissection_timer_ = new QElapsedTimer();
+
+    refreshThemeColors();
+    connect(ThemeManager::instance(), &ThemeManager::themeChanged,
+            this, &PacketListModel::onThemeChanged);
 }
 
 PacketListModel::~PacketListModel()
@@ -141,6 +148,7 @@ unsigned PacketListModel::recreateVisibleRows()
     visible_rows_.resize(0);
     number_to_row_.fill(0);
     endResetModel();
+    aggregation_key_row_.clear();
 
     foreach (PacketListRecord *record, physical_rows_) {
         updateVisibleRows(record);
@@ -162,6 +170,7 @@ void PacketListModel::clear() {
     visible_rows_.resize(0);
     new_visible_rows_.resize(0);
     number_to_row_.resize(0);
+    aggregation_key_row_.clear();
     endResetModel();
     idle_dissection_timer_->invalidate();
     idle_dissection_row_ = 0;
@@ -197,13 +206,12 @@ void PacketListModel::invalidateAllColumnStrings()
     // of what roles changed and the other signals do not; in practice,
     // neither QTreeView::dataChanged nor QAbstractItemView::dataChanged
     // actually use the roles parameter, and just reset everything.
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     emit layoutAboutToBeChanged();
-#endif
     PacketListRecord::invalidateAllRecords();
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     emit layoutChanged();
-#else
+#if 0
+    // TODO: Check to see if Qt 6.9.0 is faster with the old approach now that
+    // QTBUG-124173 is fixed, here and in the other functions.
     emit dataChanged(index(0, 0), index(rowCount() - 1, columnCount() - 1),
             QVector<int>() << Qt::DisplayRole);
 #endif
@@ -211,16 +219,13 @@ void PacketListModel::invalidateAllColumnStrings()
 
 void PacketListModel::resetColumns()
 {
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     emit layoutAboutToBeChanged();
-#endif
     if (cap_file_) {
         PacketListRecord::resetColumns(&cap_file_->cinfo);
     }
 
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     emit layoutChanged();
-#else
+#if 0
     emit dataChanged(index(0, 0), index(rowCount() - 1, columnCount() - 1));
 #endif
     emit headerDataChanged(Qt::Horizontal, 0, columnCount() - 1);
@@ -228,13 +233,10 @@ void PacketListModel::resetColumns()
 
 void PacketListModel::resetColorized()
 {
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     emit layoutAboutToBeChanged();
-#endif
     PacketListRecord::resetColorization();
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     emit layoutChanged();
-#else
+#if 0
     emit dataChanged(index(0, 0), index(rowCount() - 1, columnCount() - 1),
             QVector<int>() << Qt::BackgroundRole << Qt::ForegroundRole);
 #endif
@@ -271,9 +273,7 @@ void PacketListModel::toggleFrameMark(const QModelIndexList &indeces)
 
 void PacketListModel::setDisplayedFrameMark(bool set)
 {
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     emit layoutAboutToBeChanged();
-#endif
     foreach (PacketListRecord *record, visible_rows_) {
         if (set) {
             cf_mark_frame(cap_file_, record->frameData());
@@ -281,9 +281,8 @@ void PacketListModel::setDisplayedFrameMark(bool set)
             cf_unmark_frame(cap_file_, record->frameData());
         }
     }
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     emit layoutChanged();
-#else
+#if 0
     emit dataChanged(index(0, 0), index(rowCount() - 1, columnCount() - 1),
             QVector<int>() << Qt::BackgroundRole << Qt::ForegroundRole);
 #endif
@@ -320,9 +319,7 @@ void PacketListModel::toggleFrameIgnore(const QModelIndexList &indeces)
 
 void PacketListModel::setDisplayedFrameIgnore(bool set)
 {
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     emit layoutAboutToBeChanged();
-#endif
     foreach (PacketListRecord *record, visible_rows_) {
         if (set) {
             cf_ignore_frame(cap_file_, record->frameData());
@@ -330,9 +327,8 @@ void PacketListModel::setDisplayedFrameIgnore(bool set)
             cf_unignore_frame(cap_file_, record->frameData());
         }
     }
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     emit layoutChanged();
-#else
+#if 0
     emit dataChanged(index(0, 0), index(rowCount() - 1, columnCount() - 1),
             QVector<int>() << Qt::BackgroundRole << Qt::ForegroundRole << Qt::DisplayRole);
 #endif
@@ -348,9 +344,7 @@ void PacketListModel::toggleFrameRefTime(const QModelIndex &rt_index)
     frame_data *fdata = record->frameData();
     if (!fdata) return;
 
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     emit layoutAboutToBeChanged();
-#endif
     if (fdata->ref_time) {
         fdata->ref_time=0;
         cap_file_->ref_time_count--;
@@ -363,7 +357,10 @@ void PacketListModel::toggleFrameRefTime(const QModelIndex &rt_index)
         cap_file_->displayed_count--;
     }
     record->resetColumns(&cap_file_->cinfo);
+    emit layoutChanged();
+#if 0
     emit dataChanged(index(0, 0), index(rowCount() - 1, columnCount() - 1));
+#endif
 }
 
 void PacketListModel::unsetAllFrameRefTime()
@@ -372,6 +369,7 @@ void PacketListModel::unsetAllFrameRefTime()
 
     /* XXX: we might need a progressbar here */
 
+    emit layoutAboutToBeChanged();
     foreach (PacketListRecord *record, physical_rows_) {
         frame_data *fdata = record->frameData();
         if (fdata->ref_time) {
@@ -381,9 +379,8 @@ void PacketListModel::unsetAllFrameRefTime()
     cap_file_->ref_time_count = 0;
     cf_reftime_packets(cap_file_);
     PacketListRecord::resetColumns(&cap_file_->cinfo);
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     emit layoutChanged();
-#else
+#if 0
     emit dataChanged(index(0, 0), index(rowCount() - 1, columnCount() - 1));
 #endif
 }
@@ -537,8 +534,8 @@ ProgressFrame *PacketListModel::progress_frame_;
 double PacketListModel::comps_;
 double PacketListModel::exp_comps_;
 
-QElapsedTimer busy_timer_;
-const int busy_timeout_ = 65; // ms, approximately 15 fps
+static QElapsedTimer busy_timer_;
+constexpr int busy_timeout_ = 65; // ms, approximately 15 fps
 void PacketListModel::sort(int column, Qt::SortOrder order)
 {
     if (!cap_file_ || visible_rows_.count() < 1) return;
@@ -633,11 +630,18 @@ void PacketListModel::sort(int column, Qt::SortOrder order)
     sort_column_is_numeric_ = isNumericColumn(sort_column_);
     QVector<PacketListRecord *> sorted_visible_rows_ = visible_rows_;
     try {
+        if (recent.aggregation_view && prefs.aggregation_fields_num > 0) {
+            for (QHash<QString, int>::const_iterator it = aggregation_key_row_.constBegin();
+                it != aggregation_key_row_.constEnd(); ++it) {
+                sorted_visible_rows_[it.value()]->frameData()->aggregation_key = g_strdup(it.key().toUtf8());
+            }
+        }
         std::sort(sorted_visible_rows_.begin(), sorted_visible_rows_.end(), recordLessThan);
 
         beginResetModel();
         visible_rows_.resize(0);
         number_to_row_.fill(0);
+        aggregation_key_row_.clear();
         foreach (PacketListRecord *record, sorted_visible_rows_) {
             updateVisibleRows(record);
         }
@@ -746,27 +750,38 @@ void PacketListModel::updateVisibleRows(PacketListRecord* record)
     if (!(fdata->passed_dfilter || fdata->ref_time)) {
         return;
     }
-    bool add_record = true;
-    if (recent.aggregation_view) {
-        for (qsizetype i = 0; i < visible_rows_.size(); i++) {
-            frame_data* prev_fdata = visible_rows_[i]->frameData();
-            if (frame_data_aggregation_compare(prev_fdata, fdata) == 0) {
-                record->setRow(visible_rows_[i]->row());
-                frame_data_aggregation_free(prev_fdata);
-                visible_rows_[i] = record;
-                add_record = false;
-                break;
-            }
-        }
-    }
-    if (add_record) {
-        record->setRow(static_cast<int>(visible_rows_.count()) + 1);
+    record->setRow(static_cast<int>(visible_rows_.count()) + 1);
+    if (!recent.aggregation_view || updateVisibleAggregationViewRows(record)) {
         visible_rows_ << record;
     }
     if (static_cast<uint32_t>(number_to_row_.size()) <= fdata->num) {
         number_to_row_.resize(fdata->num + buffer_size_);
     }
     number_to_row_[fdata->num] = record->row();
+    if (recent.aggregation_view) {
+        cap_file_->aggregation_count = static_cast<uint32_t>(visible_rows_.count());
+    }
+}
+
+bool PacketListModel::updateVisibleAggregationViewRows(PacketListRecord* record) {
+    if (prefs.aggregation_fields_num == 0) return true;
+
+    frame_data* fdata = record->frameData();
+    if (fdata->aggregation_key == nullptr) return false; // Only packets containing the aggregation fields are displayed
+
+    QString key = QString::fromUtf8(fdata->aggregation_key);
+    frame_data_aggregation_free(fdata);
+    if (!aggregation_key_row_.contains(key)) {
+        aggregation_key_row_[key] = record->row() - 1;
+        return true;
+    }
+    int row = aggregation_key_row_[key];
+    frame_data* prev_frame = visible_rows_[row]->frameData();
+    frame_data_aggregation_free(prev_frame);
+    prev_frame->aggregated = true;
+    record->setRow(row + 1);
+    visible_rows_[row] = record;
+    return false;
 }
 
 bool PacketListModel::recordLessThan(PacketListRecord *r1, PacketListRecord *r2)
@@ -903,30 +918,25 @@ QVariant PacketListModel::data(const QModelIndex &d_index, int role) const
         return Qt::AlignLeft;
 
     case Qt::BackgroundRole:
-        const color_t *color;
         if (fdata->ignored) {
-            color = &prefs.gui_ignored_bg;
+            return ignored_bg_;
         } else if (fdata->marked) {
-            color = &prefs.gui_marked_bg;
+            return marked_bg_;
         } else if (fdata->color_filter && recent.packet_list_colorize) {
             const color_filter_t *color_filter = (const color_filter_t *) fdata->color_filter;
-            color = &color_filter->bg_color;
-        } else {
-            return QVariant();
+            return ColorUtils::fromColorT(&color_filter->bg_color);
         }
-        return ColorUtils::fromColorT(color);
+        return QVariant();
     case Qt::ForegroundRole:
         if (fdata->ignored) {
-            color = &prefs.gui_ignored_fg;
+            return ignored_fg_;
         } else if (fdata->marked) {
-            color = &prefs.gui_marked_fg;
+            return marked_fg_;
         } else if (fdata->color_filter && recent.packet_list_colorize) {
             const color_filter_t *color_filter = (const color_filter_t *) fdata->color_filter;
-            color = &color_filter->fg_color;
-        } else {
-            return QVariant();
+            return ColorUtils::fromColorT(&color_filter->fg_color);
         }
-        return ColorUtils::fromColorT(color);
+        return QVariant();
     case Qt::AccessibleTextRole:
     {
         return record->columnString(cap_file_, d_index.column(), true);
@@ -1107,4 +1117,23 @@ int PacketListModel::visibleIndexOf(const frame_data *fdata) const
         return -1;
     }
     return packetNumberToRow(fdata->num);
+}
+
+void PacketListModel::refreshThemeColors()
+{
+    ThemeManager *tm = ThemeManager::instance();
+    marked_bg_  = tm->color(ThemeManager::PacketsMarked);
+    marked_fg_  = tm->color(ThemeManager::PacketsMarkedText);
+    ignored_bg_ = tm->color(ThemeManager::PacketsIgnored);
+    ignored_fg_ = tm->color(ThemeManager::PacketsIgnoredText);
+}
+
+void PacketListModel::onThemeChanged()
+{
+    refreshThemeColors();
+    if (rowCount() > 0) {
+        emit dataChanged(index(0, 0),
+                         index(rowCount() - 1, columnCount() - 1),
+                         QVector<int>() << Qt::BackgroundRole << Qt::ForegroundRole);
+    }
 }

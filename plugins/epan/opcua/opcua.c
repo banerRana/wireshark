@@ -29,6 +29,7 @@
 #include <wiretap/secrets-types.h>
 #include <wsutil/file_util.h>
 
+#include "opcua.h"
 #include "opcua_application_layer.h"
 #include "opcua_complextypeparser.h"
 #include "opcua_enumparser.h"
@@ -37,13 +38,12 @@
 #include "opcua_security_layer.h"
 #include "opcua_serviceparser.h"
 #include "opcua_serviceids.h"
+#include "opcua_servicetable.h"
 #include "opcua_simpletypes.h"
 #include "opcua_transport_layer.h"
 
 void proto_register_opcua(void);
 
-extern const value_string g_requesttypes[];
-extern const int g_NumServices;
 static const char *g_opcua_debug_file_name;
 int g_opcua_default_sig_len;
 
@@ -66,10 +66,6 @@ static module_t *opcua_module;
 #define FRAME_HEADER_LEN 8
 /* AES block size: for both AES128 and AES256 the block size is 128 bits */
 #define AES_BLOCK_SIZE 16
-
-/** subtree types used in opcua_transport_layer.c */
-int ett_opcua_extensionobject;
-int ett_opcua_nodeid;
 
 /** subtree types used locally */
 static int ett_opcua_transport;
@@ -321,12 +317,17 @@ static void opcua_load_keylog_file(const char *filename)
  * @param padding Pointer to last padding byte.
  * @return padding length on success, -1 if the padding is invalid.
  */
-static int verify_padding(const uint8_t *padding)
+static int verify_padding(const uint8_t *padding, unsigned available)
 {
     uint8_t pad_len;
     uint8_t i;
 
     pad_len = *padding;
+
+    if (pad_len > available) {
+        ws_debug("padding length %u exceeds available space %u", pad_len, available);
+        return -1;
+    }
 
     for (i = 0; i < pad_len; ++i) {
         if (padding[-pad_len + i] != pad_len) return -1;
@@ -365,7 +366,7 @@ static int opcua_get_footer_info(uint32_t channel_id, uint32_t token_id, uint8_t
     }
 
     ws_debug("no keyset found for channel_id=%u and token_id=%u", channel_id, token_id);
-    /* we use sig_len set from OpenSecurehChannel Policy in this case.
+    /* we use sig_len set from OpenSecureChannel Policy in this case.
      * this requires to have the OPN in the capture file, otherwise we are out of luck.
      */
 
@@ -484,13 +485,21 @@ static int decrypt_opcua(
         return ret;
     }
 
-    ret = verify_padding(&plaintext[plaintext_len - *sig_len - 1]);
+    /* guard: need at least sig_len + 1 bytes for the padding-length byte */
+    if (plaintext_len < (unsigned)*sig_len + 1) {
+        ws_debug("plaintext too short for signature and padding");
+        return -1;
+    }
+
+    unsigned pad_offset = plaintext_len - *sig_len - 1;
+    ret = verify_padding(&plaintext[pad_offset], pad_offset);
     if (ret < 0) {
         ws_debug("padding is invalid.");
+        return -1;
     }
 
     /* return padding length */
-    *padding_len = plaintext[plaintext_len - *sig_len - 1];
+    *padding_len = plaintext[pad_offset];
     ws_debug("sig_len=%u", *sig_len);
     ws_debug("pad_len=%u", *padding_len);
 
@@ -587,7 +596,7 @@ static int dissect_opcua_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
     if (pfctParse)
     {
         int offset = 0;
-        int iServiceId = -1;
+        int iServiceId;
         bool bParseService = false; /* Only MSG, OPN and CLO have a service payload */
         bool bIsFinalChunk = false;
         unsigned payload_len = 0;
@@ -659,7 +668,7 @@ static int dissect_opcua_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
                 if (ret == 0) {
                     /* decrypted */
                     /* to get the payload length we need to subtract the sequence header (8) byte,
-                     * the padding (paddin_len+1), and the signature from the plaintext */
+                     * the padding (pad_len+1), and the signature from the plaintext */
                     payload_len = plaintext_len - pad_len - sig_len - 9; /* pad_len 2 = 02 02 02 */
                     /* Now re-setup the tvb buffer to have the new data */
                     decrypted_tvb = tvb_new_child_real_data(tvb, plaintext, (unsigned)plaintext_len, (unsigned)plaintext_len);
@@ -878,13 +887,10 @@ void proto_cleanup_opcua(void)
 /** secrets callback called from Wireshark when loading a capture file with OPC UA Keylog File. */
 static void opcua_secrets_block_callback(const void *secrets, unsigned size)
 {
-    char *tmp = g_memdup2(secrets, size + 1);
-    if (tmp == NULL) return; /* OOM */
-
+    char *tmp = g_malloc0(size + 1);
+    memcpy(tmp, secrets, size);
     ws_debug("Loading secrets block '%s'...", (const char*)secrets);
     ws_debug("size = %u", size);
-    /* ensure data is zero terminated */
-    tmp[size] = 0;
     /* parse data */
     opcua_keylog_process_lines(tmp);
     g_free(tmp);
@@ -913,8 +919,6 @@ void proto_register_opcua(void)
     /** Setup protocol subtree array */
     static int *ett[] =
         {
-            &ett_opcua_extensionobject,
-            &ett_opcua_nodeid,
             &ett_opcua_transport,
             &ett_opcua_fragment,
             &ett_opcua_fragments

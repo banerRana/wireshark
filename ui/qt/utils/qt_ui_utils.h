@@ -92,12 +92,23 @@ QByteArray gchar_free_to_qbytearray(char *glib_string);
  */
 QByteArray gstring_free_to_qbytearray(GString *glib_gstring);
 
-/** Transfer ownership of a GbyteArray to a newly constructed QByteArray
+/** Transfer ownership of a GByteArray to a newly constructed QByteArray
  *
  * @param glib_array A GByteArray or NULL. Will be freed.
  * @return A QByteArray instance created from the input array.
  */
 QByteArray gbytearray_free_to_qbytearray(GByteArray *glib_array);
+
+/** Transfer ownership of a GBytes to a newly constructed QByteArray
+ *
+ * @param glib_bytes A GBytes or NULL. Will be freed.
+ * @return A QByteArray instance created from the input array.
+ *
+ * @note Do not call this if the GBytes has more than SSIZE_MAX bytes.
+ * QByteArray can store qsizetype (ssize_t), whereas QBytes can store size_t
+ * bytes. Cf. the warning on g_bytes_unref_to_array().
+ */
+QByteArray gbytes_free_to_qbytearray(GBytes *glib_bytes);
 
 /** Convert an integer to a formatted string representation.
  *
@@ -248,14 +259,6 @@ void desktop_show_in_folder(const QString file_path);
  * screens, false otherwise.
  */
 bool rect_on_screen(const QRect &rect);
-
-/**
- * Set the "shortcutVisibleInContextMenu" property to true for
- * a list of qactions.
- *
- * @param actions The actions to make visible.
- */
-void set_action_shortcuts_visible_in_context_menu(QList<QAction *> actions);
 
 /**
  * Create copy of all rtpstream_ids to new QVector

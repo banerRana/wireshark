@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ws_posix_compat.h> // SSIZE_MAX
 
 #ifndef _WIN32
 #include <unistd.h>
@@ -82,6 +83,16 @@ QByteArray gbytearray_free_to_qbytearray(GByteArray *glib_array)
 {
     QByteArray qt_ba(reinterpret_cast<char *>(glib_array->data), glib_array->len);
     g_byte_array_free(glib_array, true);
+    return qt_ba;
+}
+
+QByteArray gbytes_free_to_qbytearray(GBytes *glib_bytes)
+{
+    size_t size;
+    const char* bytes = reinterpret_cast<const char *>(g_bytes_get_data(glib_bytes, &size));
+    Q_ASSERT(size <= SSIZE_MAX);
+    QByteArray qt_ba(bytes, size);
+    g_bytes_unref(glib_bytes);
     return qt_ba;
 }
 
@@ -207,12 +218,7 @@ QString join_lines(const QString multiline_string) {
 }
 
 void smooth_font_size(QFont &font) {
-#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
     QList<int> size_list = QFontDatabase::smoothSizes(font.family(), font.styleName());
-#else
-    QFontDatabase fdb;
-    QList<int> size_list = fdb.smoothSizes(font.family(), font.styleName());
-#endif
 
     if (size_list.size() < 2) return;
 
@@ -314,13 +320,6 @@ bool rect_on_screen(const QRect &rect)
     }
 
     return false;
-}
-
-void set_action_shortcuts_visible_in_context_menu(QList<QAction *> actions)
-{
-    // For QT_VERSION >= 5.13.0 we call styleHints()->setShowShortcutsInContextMenus(true)
-    // in WiresharkApplication.
-    Q_UNUSED(actions)
 }
 
 QVector<rtpstream_id_t *>qvector_rtpstream_ids_copy(QVector<rtpstream_id_t *> stream_ids)

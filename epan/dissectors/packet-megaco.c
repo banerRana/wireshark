@@ -39,7 +39,6 @@
 #include <epan/unit_strings.h>
 
 #include <wsutil/array.h>
-#include <wsutil/strtoi.h>
 #include "packet-ber.h"
 #include "packet-tpkt.h"
 #include "packet-h245.h"
@@ -484,10 +483,15 @@ static int dissect_megaco_text_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree
      * The minimum length of a MEGACO message is 6?:
      * Re-assembly ?
      */
-    if (is_tpkt(tvb, 6, NULL)) {
+    if (!is_tpkt(tvb, 6, NULL)) {
         /*
          * It's not a TPKT packet;
          * Is in MEGACO ?
+         *
+         * XXX - Why call dissect_tpkt_encap after deciding that
+         * MEGACO is not in TPKT? For the Continuation case? But
+         * dissect_megaco_text can call the data dissector if it
+         * doesn't look like MEGACO, so it's duplicative.
          */
         dissect_megaco_text(tvb, pinfo, tree, data);
     }
@@ -2464,9 +2468,8 @@ dissect_megaco_servicechangedescriptor(tvbuff_t *tvb, packet_info* pinfo, proto_
     bool        found;
     bool        more_params = true;
     proto_item* item;
-    int         reason;
+    unsigned    reason;
     bool        reason_valid;
-    uint8_t     ServiceChangeReason_str[4];
 
     tvb_find_uint8_length(tvb, tvb_previous_offset, tvb_RBRKT, '{', &tvb_LBRKT);
     /*
@@ -2512,8 +2515,7 @@ dissect_megaco_servicechangedescriptor(tvbuff_t *tvb, packet_info* pinfo, proto_
             if ( found == false)
                 break;
 
-            tvb_get_raw_bytes_as_stringz(tvb,tvb_current_offset,4,ServiceChangeReason_str);
-            reason_valid = ws_strtoi32((char*)ServiceChangeReason_str, NULL, &reason);
+            reason_valid = tvb_get_string_uint(tvb, tvb_current_offset, 3, ENC_STR_DEC, &reason, NULL);
             proto_item_append_text(item,"[ %s ]", val_to_str(pinfo->pool, reason, MEGACO_ServiceChangeReasons_vals,"Unknown (%u)"));
             if (!reason_valid)
                 expert_add_info(pinfo, item, &ei_megaco_reason_invalid);
@@ -2572,7 +2574,7 @@ dissect_megaco_statisticsdescriptor(tvbuff_t *tvb, proto_tree *megaco_tree_comma
     unsigned tokenlen;
     proto_tree  *megaco_statisticsdescriptor_tree;
     proto_item  *megaco_statisticsdescriptor_ti;
-    unsigned tvb_help_offset, param_start_offset, param_end_offset = 0;
+    unsigned tvb_help_offset, param_start_offset, param_end_offset;
 
     /* statisticsDescriptor = StatsToken LBRKT statisticsParameter
      *                        *(COMMA statisticsParameter ) RBRKT
@@ -2787,6 +2789,7 @@ dissect_megaco_Packagesdescriptor(tvbuff_t *tvb, packet_info *pinfo _U_, proto_t
             tvb_find_uint8_length(tvb, tvb_RBRKT+1, tvb_packages_end_offset, '}', &tvb_RBRKT);
             tvb_LBRKT_found = tvb_find_uint8_length(tvb, tvb_LBRKT, tvb_packages_end_offset, '{', &tvb_LBRKT);
 
+            /* Find the comma that delimits the next packagesItem */
             found  = tvb_find_uint8_length(tvb, tvb_previous_offset, tvb_packages_end_offset, ',', &tvb_current_offset);
 
             if (found == false || tvb_current_offset > tvb_packages_end_offset){
@@ -2818,18 +2821,13 @@ dissect_megaco_Packagesdescriptor(tvbuff_t *tvb, packet_info *pinfo _U_, proto_t
 
             proto_tree_add_format_text(megaco_packagesdescriptor_tree, tvb, tvb_previous_offset, tokenlen);
 
-            found = tvb_find_uint8_length(tvb, tvb_RBRKT, tvb_packages_end_offset, ',', &tvb_current_offset);
-
-            if (found == false || tvb_current_offset > tvb_packages_end_offset ){
-                tvb_current_offset = tvb_packages_end_offset;
-            }
-
+            /* Move past the comma and any LWSP */
             tvb_previous_offset = megaco_tvb_skip_wsp(tvb, tvb_current_offset+1);
 
             tvb_LBRKT = tvb_previous_offset;
             tvb_RBRKT = tvb_previous_offset;
 
-        } while ( tvb_current_offset < tvb_packages_end_offset );
+        } while ( tvb_previous_offset < tvb_packages_end_offset );
     }
 
 }
@@ -2930,8 +2928,7 @@ dissect_megaco_errordescriptor(tvbuff_t *tvb, packet_info* pinfo, proto_tree *me
 {
 
     unsigned            tokenlen;
-    int                 error_code;
-    uint8_t             error[4];
+    unsigned            error_code;
     unsigned            tvb_current_offset;
     proto_item*         item;
     proto_tree*         error_tree;
@@ -2947,8 +2944,7 @@ dissect_megaco_errordescriptor(tvbuff_t *tvb, packet_info* pinfo, proto_tree *me
     error_tree = proto_item_add_subtree(item, ett_megaco_error_descriptor);
 
     /* Get the error code */
-    tvb_get_raw_bytes_as_stringz(tvb,tvb_current_offset,4,error);
-    error_code_valid = ws_strtoi32((char*)error, NULL, &error_code);
+    error_code_valid = tvb_get_string_uint(tvb, tvb_current_offset, 3, ENC_STR_DEC, &error_code, NULL);
     item = proto_tree_add_uint(error_tree, hf_megaco_error_code, tvb, tvb_current_offset, 3, error_code);
     if (!error_code_valid)
         expert_add_info(pinfo, item, &ei_megaco_error_code_invalid);
@@ -3155,7 +3151,7 @@ dissect_megaco_LocalControldescriptor(tvbuff_t *tvb, proto_tree *megaco_mediades
     unsigned tokenlen;
     unsigned token_name_len;
     unsigned tvb_offset = 0, tvb_help_offset, tvb_current_offset = 0, endoff;
-    int token_index = 0;
+    int token_index;
     char *msg;
     proto_item* item;
     uint32_t dscp;
@@ -3273,7 +3269,7 @@ dissect_megaco_LocalControldescriptor(tvbuff_t *tvb, proto_tree *megaco_mediades
             break;
 
         case MEGACO_DS_DSCP:
-            tvb_get_string_uint(tvb, tvb_current_offset, 3, ENC_STR_NUM, &dscp, &endoff);
+            tvb_get_string_uint(tvb, tvb_current_offset, 3, ENC_STR_HEX, &dscp, &endoff);
             item = proto_tree_add_uint(megaco_LocalControl_tree, hf_megaco_ds_dscp, tvb,
                 tvb_help_offset, 1, dscp);
             proto_item_set_len(item, tvb_offset-tvb_help_offset);
@@ -3321,7 +3317,7 @@ dissect_megaco_LocalControldescriptor(tvbuff_t *tvb, proto_tree *megaco_mediades
             bool sdr_valid;
             proto_item* pi;
 
-            sdr_valid = ws_strtoi32(tvb_format_text(pinfo->pool, tvb, tvb_current_offset, tokenlen), NULL, &sdr);
+            sdr_valid = tvb_get_string_int(tvb, tvb_current_offset, tokenlen, ENC_STR_DEC, &sdr, NULL);
             pi =proto_tree_add_int(megaco_LocalControl_tree, hf_megaco_tman_sdr, tvb, tvb_help_offset,
                 tvb_offset - tvb_help_offset, sdr);
             proto_item_append_text(pi, " [%i b/s]", sdr*8);
@@ -3524,7 +3520,7 @@ static void tvb_raw_text_add(tvbuff_t *tvb, proto_tree *tree){
 * Returns: The position in tvb of the first non-whitespace
 */
 static unsigned megaco_tvb_skip_wsp(tvbuff_t* tvb, unsigned offset ){
-    unsigned counter = offset;
+    unsigned counter;
     unsigned end = tvb_reported_length(tvb);
 
     for(counter = offset; counter < end &&
@@ -3533,7 +3529,7 @@ static unsigned megaco_tvb_skip_wsp(tvbuff_t* tvb, unsigned offset ){
 }
 
 static unsigned megaco_tvb_skip_wsp_return(tvbuff_t* tvb, unsigned offset){
-    unsigned counter = offset;
+    unsigned counter;
     unsigned end = 0;
 
     for(counter = offset; counter > end &&
@@ -3583,7 +3579,7 @@ megaco_fmt_content( char *result, uint32_t context )
         (void) g_strlcpy(result, val_to_str_const(context, megaco_context_vals, "Unknown"), ITEM_LABEL_LENGTH);
         break;
     default:
-        snprintf( result, ITEM_LABEL_LENGTH, "%d", context);
+        snprintf( result, ITEM_LABEL_LENGTH, "%u", context);
     }
 }
 

@@ -830,7 +830,7 @@ dissect_live_peer_list(proto_tree *mka_tree, packet_info *pinfo, tvbuff_t *tvb, 
   proto_tree_add_uint(live_peer_list_set_tree, hf_mka_param_body_length, tvb, offset, 2, param_body_len);
   offset += 2;
 
-  unsigned index = 1; // SSCIs start at 1
+  unsigned idx = 1; // SSCIs start at 1
   while (param_body_len >= 16) {
     /* If this is MKA version 3 and a Live Peer List in a MKPDU that contains
      * a Distributed SAK, then the MIs are ordered in order of their SCI. This,
@@ -846,12 +846,12 @@ dissect_live_peer_list(proto_tree *mka_tree, packet_info *pinfo, tvbuff_t *tvb, 
     proto_tree_add_item(live_peer_list_set_tree, hf_mka_peer_mi, tvb, offset, MKA_MI_LEN, ENC_NA);
     if (sci_map) {
       mi = tvb_memdup(pinfo->pool, tvb, offset, MKA_MI_LEN);
-      if (index >= server_ssci) {
+      if (idx >= server_ssci) {
         // This is the correct 1-indexed position if server_ssci is 0
         // Because the server SCI was put at the first position.
-        ssci = index + 1;
+        ssci = idx + 1;
       } else {
-        ssci = index;
+        ssci = idx;
       }
       // Do we know the SCI for this MI?
       sci = wmem_map_lookup(mka_mi_sci_map, mi);
@@ -882,7 +882,7 @@ dissect_live_peer_list(proto_tree *mka_tree, packet_info *pinfo, tvbuff_t *tvb, 
     offset += 4;
 
     param_body_len -= 16;
-    index++;
+    idx++;
   }
 
   if (mi_array && know_all_sci && !server_ssci) {
@@ -1014,7 +1014,7 @@ dissect_sak_use(proto_tree *mka_tree, packet_info *pinfo _U_, tvbuff_t *tvb, int
     } else {
       proto_tree_add_item(sak_use_set_tree, hf_mka_old_lowest_acceptable_pn, tvb, offset, 4, ENC_BIG_ENDIAN);
     }
-    offset += 4;
+    /*offset += 4;*/
   }
   else
   {
@@ -1092,7 +1092,7 @@ dissect_distributed_sak(proto_tree *mka_tree, packet_info *pinfo, tvbuff_t *tvb,
     /* Add the wrapped key data. */
     const uint8_t *wrappedkey = tvb_memdup(pinfo->pool, tvb, offset, wrappedlen);
     proto_tree_add_item(distributed_sak_tree, hf_mka_aes_key_wrap_sak, tvb, offset, wrappedlen, ENC_NA);
-    offset += wrappedlen;
+    /*offset += wrappedlen;*/
 
     /* Attempt to unwrap the key using the KEK for the CKN. */
     /* Fetch the KEK for the CKN in the basic parameter set. */
@@ -1107,7 +1107,7 @@ dissect_distributed_sak(proto_tree *mka_tree, packet_info *pinfo, tvbuff_t *tvb,
 
     /* If no KEK available, skip the decode. */
     mka_ckn_info_key_t *key = &(rec->key);
-    if ((NULL == key) || (0 == key->kek_len)) {
+    if (0 == key->kek_len) {
       goto out;
     }
 
@@ -1316,7 +1316,7 @@ dissect_announcement(proto_tree *mka_tree, packet_info *pinfo, tvbuff_t *tvb, in
     }
   }
 
-  return announcement_set_tree;;
+  return announcement_set_tree;
 }
 
 static proto_tree *
@@ -1452,7 +1452,7 @@ calculate_icv(packet_info *pinfo, size_t icv_len) {
 
   /* If no ICK available, skip the calculation. */
   mka_ckn_info_key_t *key = &(rec->key);
-  if ((NULL == key) || (0 == key->ick_len)) {
+  if (0 == key->ick_len) {
     return NULL;
   }
 
@@ -1553,7 +1553,6 @@ dissect_mka(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
    * The 802.1Xbx-2014 spec specifies support for MKA version 2.
    * The 802.1Xck-2018 spec specifies support for MKA version 3.
    */
-  mka_version_type = tvb_get_uint8(tvb, offset);
   if ((mka_version_type < 1) || (mka_version_type > 3)) {
     expert_add_info(pinfo, ti, &ei_unexpected_data);
   }
